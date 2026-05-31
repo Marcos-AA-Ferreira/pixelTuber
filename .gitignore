@@ -1,0 +1,26 @@
+# Ambientes Virtuais
+venv/
+.venv/
+env/
+
+# Caches do Python e Compilação
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Pastas
+profiles/
+
+# Arquivos de Configuração Local e Logs
+config.json
+*.log
+
+# Arquivos de Build/Distribuição do PyInstaller
+build/
+dist/
+*.spec
+
+# Arquivos pessoais
+AtivaCriarVenv.txt

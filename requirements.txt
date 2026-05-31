@@ -1,0 +1,6 @@
+
+pip install pynput
+
+pip install PySide6 keyboard sounddevice numpy
+
+pip install PySide6-Essentials PySide6-Addons
