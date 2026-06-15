@@ -20,17 +20,15 @@ from ui.window.background_window import BackgroundWindow
 from ui.control_panel import ControlPanel
 
 try:
-    # ID único para evitar agrupamento na barra de tarefas do Windows
     myappid = 'pixeltuber.standalone.v2'
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-    # Silencia avisos desnecessários de codecs no console
     os.environ["QT_LOGGING_RULES"] = "qt.multimedia.ffmpeg=false;qt.multimedia.playbackengine.codec=false"
 except:
     pass
 
 class PixelTuberApp:
     def __init__(self):
-        # 1. Carregar Configurações e Perfis
+        # 1. Carregar Configurações
         self.config = ConfigManager()
         
         # 2. Inicializar Motores de Áudio e Animação
@@ -41,18 +39,17 @@ class PixelTuberApp:
         )
         self.anim_logic = AnimationManager(self.config)
         
-        # 3. Inicializar Janelas de Interface
+        # 3. Inicializar Janelas
         self.bg_window = BackgroundWindow()
         self.render = RenderWindow(self.config)
         self.overlay = FullScreenOverlay()
         
-        # 4. Inicializar Gerenciadores de Lógica Adicional
+        # 4. Inicializar Gerenciadores de Lógica
         self.effects = EffectManager(self.overlay)
-        
         self.hotkeys = HotkeyManager(self.config, self.render, self.overlay)
         self.hotkeys.setup_defaults()
         
-        # 5. Interface de Controle (Painel de Configurações)
+        # 5. Interface de Controle
         self.panel = ControlPanel(
             self.config, 
             self.audio, 
@@ -63,12 +60,14 @@ class PixelTuberApp:
             bg_window=self.bg_window
         )
         
-        # 6. Configuração da Bandeja do Sistema (System Tray)
+        # 6. Bandeja do Sistema
         self.setup_tray()
+        
+        # Variável para o Auto-Ducking da música de fundo
+        self.current_duck_multiplier = 1.0
         
         # 7. Aplicação do Estado Inicial
         self.audio.start()
-        
         bg_path = self.config.data.get("bg_path")
         if validate_path(bg_path):
             self.bg_window.set_background(bg_path)
@@ -77,44 +76,31 @@ class PixelTuberApp:
         self.bg_window.show()
         self.render.show()
         self.overlay.show()
-        
-        # Só exibe o painel se não estiver configurado para iniciar minimizado (opcional futuro)
         self.panel.show()
         self.panel.raise_()
 
-        # 9. Loop Principal de Sincronização
+        # 9. Loop Principal
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_loop)
-        
-        # Aplica o FPS inicial salvo
         self.apply_fps_limit()
-        
-        # Contador de frames para evitar leitura de disco excessiva
         self.frame_count = 0
 
     def setup_tray(self):
-        """Configura o ícone e o menu na bandeja do sistema (perto do relógio)."""
-        self.tray_icon = QSystemTrayIcon(QIcon("assets\AVATAR_ICON.ico"), QApplication.instance())
+        self.tray_icon = QSystemTrayIcon(QIcon("assets/PAINEL-DE-CONTROLE_ICON.ico"), QApplication.instance())
         self.tray_icon.setToolTip("PixelTuber")
-        
         menu = QMenu()
-        
         show_action = QAction("Abrir Painel de Controle", menu)
         show_action.triggered.connect(self.show_panel)
         menu.addAction(show_action)
-        
         menu.addSeparator()
-        
         quit_action = QAction("Sair do PixelTuber", menu)
         quit_action.triggered.connect(self.quit_app)
         menu.addAction(quit_action)
-        
         self.tray_icon.setContextMenu(menu)
         self.tray_icon.activated.connect(self.tray_activation)
         self.tray_icon.show()
 
     def tray_activation(self, reason):
-        """Restaura o painel com duplo clique no ícone da bandeja."""
         if reason == QSystemTrayIcon.DoubleClick:
             self.show_panel()
 
@@ -124,38 +110,50 @@ class PixelTuberApp:
         self.panel.activateWindow()
 
     def apply_fps_limit(self):
-        """Lê a configuração e ajusta a taxa de atualização do motor principal."""
         fps_setting = self.config.data.get("system", {}).get("fps_limit", "60 FPS")
         fps_map = {"30 FPS": 33, "60 FPS": 16, "120 FPS": 8}
-        
-        # Evita resetar o timer se não houve mudança
         interval = fps_map.get(fps_setting, 16)
         if not self.timer.isActive() or self.timer.interval() != interval:
             self.timer.start(interval)
 
     def update_loop(self):
-        """Atualiza a lógica visual a cada frame."""
+        """Atualiza a lógica visual e gerencia interações de áudio a cada frame."""
         # 1. Processamento de Voz -> GIF do Avatar
         vol = self.audio.get_volume()
         path = self.anim_logic.get_current_path(vol)
         if path:
             self.render.set_animation(path)
             
-        # 2. Atualização dos Acessórios
+        # 2. Lógica de Auto-Ducking (Abaixar a música de fundo quando fala)
+        # Pega as configurações base independentemente de estar tocando ou não
+        bg_muted = self.config.data.get("bg_music_muted", False)
+        base_vol = self.config.data.get("bg_music_vol", 50)
+        
+        if not bg_muted and hasattr(self.bg_window, 'audio'):
+            # Se a voz passar do gate (0.02 ou customizado), reduz para 30% do volume original
+            target_duck = 0.3 if vol > self.audio.noise_threshold else 1.0
+            
+            # Interpolação matemática para não dar um corte seco no som (easing de 10% por frame)
+            self.current_duck_multiplier += (target_duck - self.current_duck_multiplier) * 0.1
+            
+            # Aplica o volume final recalculado no player
+            final_vol = base_vol * self.current_duck_multiplier
+            self.bg_window.audio.audio_output.setVolume(final_vol / 100.0)
+            
+        # 3. Atualização dos Acessórios
         self.render.accessories.update(self.render.main_label) 
         
-        # 3. Feedback Visual no Painel
+        # 4. Feedback Visual no Painel
         if self.panel.isVisible():
             self.panel.update_ui_feedback()
             
-        # 4. Checagem periódica de configurações do sistema (a cada ~60 frames)
+        # 5. Checagem periódica de configurações de sistema
         self.frame_count += 1
         if self.frame_count >= 60:
             self.apply_fps_limit()
             self.frame_count = 0
 
     def quit_app(self):
-        """Encerra o programa garantindo que tudo seja salvo e parado."""
         self.timer.stop()
         self.hotkeys.stop_all()
         self.audio.stop()
@@ -166,8 +164,6 @@ class PixelTuberApp:
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    
-    # Mantém a aplicação rodando mesmo que o painel de controle seja fechado pelo "X"
     app.setQuitOnLastWindowClosed(False) 
     
     try:

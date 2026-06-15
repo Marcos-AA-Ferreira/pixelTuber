@@ -4,7 +4,7 @@ import os
 from core.utils import validate_path
 
 class AnimationManager:
-    # Ordem de intensidade para lógica de comparação
+    # Ordem de intensidade para lógica de comparação e decaimento
     STATES_ORDER = ["mute", "low", "med", "high", "very_high"]
 
     def __init__(self, config_manager):
@@ -15,7 +15,7 @@ class AnimationManager:
     def get_current_path(self, vol):
         """
         Analisa o volume atual e retorna o caminho do GIF correspondente.
-        Inclui lógica de retenção (hold_time) para suavizar a transição.
+        Inclui decaimento suave para um fechamento de boca orgânico.
         """
         data = self.cfg.data
         audio_cfg = data.get("audio", {})
@@ -23,7 +23,7 @@ class AnimationManager:
         
         # Configurações de comportamento
         mode = audio_cfg.get("mode", "smooth") 
-        hold_time = audio_cfg.get("hold_time", 0.1) # Segundos para manter o estado alto
+        hold_time = audio_cfg.get("hold_time", 0.1) # Tempo de retenção por degrau
 
         # 1. Determinação do Estado Alvo (Raw)
         target_state = "mute"
@@ -32,32 +32,32 @@ class AnimationManager:
         elif vol >= th.get("med", 0.2):     target_state = "med"
         elif vol >= th.get("low", 0.05):    target_state = "low"
 
-        # 2. Lógica de Transição (Modo Smooth vs Standard)
+        # 2. Lógica de Transição
         if mode == "standard":
             self.last_state = target_state
         else:
-            # No modo Smooth, subir de nível é instantâneo, descer requer espera
+            # Modo Smooth com Decaimento Escalonado
             idx_last = self.STATES_ORDER.index(self.last_state)
             idx_target = self.STATES_ORDER.index(target_state)
 
             if idx_target > idx_last:
-                # Voz aumentou: Reage imediatamente
+                # Voz aumentou: Reage e abre a boca imediatamente
                 self.last_state = target_state
                 self.last_change_time = time.time()
             elif idx_target < idx_last:
-                # Voz diminuiu: Verifica se o tempo de retenção já passou
+                # Voz diminuiu: Decai gradualmente um estado de cada vez
                 if (time.time() - self.last_change_time) > hold_time:
-                    self.last_state = target_state
+                    # Em vez de pular para o alvo, desce apenas 1 nível na escada
+                    self.last_state = self.STATES_ORDER[idx_last - 1]
                     self.last_change_time = time.time()
 
         # 3. Busca do Ficheiro no Config
-        # Obtém o set de animações ativo (ex: "default", "bravo", "triste")
         active_set_name = data["animations"].get("main_set", "default")
         anim_set = data["animations"]["sets"].get(active_set_name, {})
         
         path = anim_set.get(self.last_state)
         
-        # Fallback: Se o caminho for inválido ou vazio, usa o estado "mute"
+        # Fallback de segurança para estados não configurados
         if not validate_path(path):
             path = anim_set.get("mute")
             

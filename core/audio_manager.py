@@ -18,11 +18,10 @@ class AudioManager:
         self.volume = 0.0
         self.stream = None
         
-        # Buffer para suavização rápida de leitura (opcional)
         self.vol_buffer = deque(maxlen=3)
 
     def audio_callback(self, indata, frames, time, status):
-        """Processamento matemático do som (executado em thread de alta prioridade)."""
+        """Processamento matemático do som com filtro passa-banda para voz."""
         if status:
             return
 
@@ -33,13 +32,24 @@ class AudioManager:
         # 1. Extração do sinal (Mono)
         signal = indata[:, 0]
         
-        # 2. Cálculo de RMS (Intensidade Sonora)
-        rms = np.sqrt(np.mean(signal ** 2))
+        # NOVA LÓGICA: Filtro de Frequência (Voz Humana: ~300Hz a ~3000Hz)
+        # Usando a transformada de Fourier real (rfft) nativa do numpy
+        fft_data = np.fft.rfft(signal)
+        freqs = np.fft.rfftfreq(len(signal), d=1.0/self.sample_rate)
+        
+        # Zera frequências fora do range vocal (isola a voz do teclado/fundo)
+        fft_data[(freqs < 300) | (freqs > 3000)] = 0
+        
+        # Reconstrói o sinal filtrado para o domínio do tempo
+        signal_filtered = np.fft.irfft(fft_data)
+        
+        # 2. Cálculo de RMS (Intensidade Sonora) no sinal isolado
+        rms = np.sqrt(np.mean(signal_filtered ** 2))
         
         # 3. Aplicação do Ganho
         vol_total = rms * self.gain
         
-        # 4. Noise Gate (Filtro de ruído de fundo)
+        # 4. Noise Gate (Filtro de ruído de fundo residual)
         if vol_total < self.noise_threshold:
             self.volume = 0.0
         else:
@@ -74,7 +84,7 @@ class AudioManager:
         return self.volume
 
     def toggle_mute(self):
-        """Ativa/Desativa a captura de volume sem fechar a stream."""
+        """Ativa/Desativa a captura sem fechar a stream."""
         self.muted = not self.muted
         return self.muted
 
