@@ -41,7 +41,7 @@ class ControlPanel(QWidget):
         main_layout = QVBoxLayout(self)
 
         # --- BOTÃO SALVAR ---
-        self.btn_save = QPushButton("💾 SALVAR TODAS AS CONFIGURAÇÕES")
+        '''self.btn_save = QPushButton("💾 SALVAR TODAS AS CONFIGURAÇÕES")
         self.btn_save.setFixedHeight(45)
         self.btn_save.setStyleSheet("""
             QPushButton { 
@@ -53,7 +53,7 @@ class ControlPanel(QWidget):
             QPushButton:hover { background-color: #218838; }
         """)
         self.btn_save.clicked.connect(self.save_settings)
-        main_layout.addWidget(self.btn_save)
+        main_layout.addWidget(self.btn_save)'''
 
         # --- SISTEMA DE ABAS ---
         self.tabs = QTabWidget()
