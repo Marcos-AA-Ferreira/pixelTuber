@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtCore import Qt
 
 from ui.window.components.bg_content_widget import BgContentWidget
@@ -9,6 +9,7 @@ class BackgroundWindow(QWidget):
     def __init__(self):
         super().__init__(None)
         self.setWindowTitle("PixelTuber - Background")
+        self.setWindowIcon(QIcon("assets\BACKGROUND_ICON.ico"))
         
         # Inicia ocupando a tela primária por padrão
         screen = QGuiApplication.primaryScreen().geometry()

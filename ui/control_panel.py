@@ -1,8 +1,9 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTabWidget, QPushButton, QApplication)
 from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QIcon
+
 from ui.tabs.audio_tab import AudioTab
 from ui.tabs.avatar_tab import AvatarTab
-# Import da ExtrasTab removido, pois agora é parte da AvatarTab
 from ui.tabs.effects_tab import EffectsTab
 from ui.tabs.settings_tab import SettingsTab
 from ui.tabs.background_tab import BackgroundTab
@@ -13,8 +14,9 @@ class ControlPanel(QWidget):
         # Inicializado sem parent para ser uma janela totalmente independente
         super().__init__(None)
         
-        # Título único para identificação no Sistema Operacional e OBS
+        # Título único e Ícone
         self.setWindowTitle("PixelTuber - Painel de Controle")
+        self.setWindowIcon(QIcon("assets/PAINEL-DE-CONTROLE_ICON.ico"))
         
         # Configuração de Janela
         self.setWindowFlags(
@@ -57,16 +59,13 @@ class ControlPanel(QWidget):
         self.tabs = QTabWidget()
         
         # Instanciando abas
-        # CORREÇÃO: Passando self.hotkeys para a AvatarTab (que agora gerencia os extras)
         self.avatar_tab = AvatarTab(self.config_manager, self.render, self.audio, self.hotkeys)
-        
         self.settings_tab = SettingsTab(self.config_manager, self.render, self.hotkeys)
         self.audio_tab = AudioTab(self.config_manager, self.audio)
         self.effects_tab = EffectsTab(self.config_manager, self.effects, self.hotkeys)
         self.background_tab = BackgroundTab(self.config_manager, bg_window)
         self.help_tab = HelpTab()
 
-        # Adicionando as abas ao widget (Extras removido pois está dentro de Avatar)
         self.tabs.addTab(self.avatar_tab, "👤 Avatar & Extras")
         self.tabs.addTab(self.settings_tab, "⚙️ Geral")
         self.tabs.addTab(self.audio_tab, "🎙 Áudio")
@@ -91,6 +90,12 @@ class ControlPanel(QWidget):
         QTimer.singleShot(2000, lambda: self.btn_save.setText("💾 SALVAR TODAS AS CONFIGURAÇÕES"))
 
     def closeEvent(self, event):
-        """Encerra o app inteiro ao fechar o painel."""
-        QApplication.instance().quit()
-        super().closeEvent(event)
+        """Verifica a configuração de Tray antes de decidir se oculta ou encerra o app."""
+        minimize_to_tray = self.config_manager.data.get("system", {}).get("minimize_to_tray", False)
+        
+        if minimize_to_tray:
+            self.hide()
+            event.ignore() # Impede o fechamento real, apenas oculta a interface
+        else:
+            QApplication.instance().quit()
+            super().closeEvent(event)

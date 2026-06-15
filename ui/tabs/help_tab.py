@@ -7,7 +7,6 @@ class HelpTab(QWidget):
     def __init__(self):
         super().__init__()
         
-        # Aplica o estilo unificado (usando apenas o que existe no seu Theme)
         self.setStyleSheet(Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX)
         
         layout_principal = QVBoxLayout(self)
@@ -26,17 +25,33 @@ class HelpTab(QWidget):
         header.setAlignment(Qt.AlignCenter)
         layout.addWidget(header)
 
+        # --- SEÇÃO: INTEGRAÇÃO OBS E SISTEMA ---
+        obs_group = QGroupBox("⚙️ INTEGRAÇÃO OBS E SISTEMA")
+        obs_lay = QVBoxLayout(obs_group)
+        
+        obs_text = (
+            f"<p style='color: {Theme.TEXT_PRIMARY};'>Configurações para otimizar sua experiência de transmissão:</p>"
+            "<ul>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Fundo Chroma Key:</b> Se a captura transparente do OBS der problemas (bordas pretas ou fantasmas), altere o fundo do Avatar para 'Verde Chroma' e aplique o Filtro de Chroma Key diretamente no OBS.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Limite de FPS:</b> Jogos pesados podem competir por CPU. Se o seu avatar travar, baixe o limite para 30 FPS. Se quiser máxima fluidez e tiver um PC forte, use 60 FPS ou 120 FPS.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Bandeja do Sistema:</b> Ao ativar 'Minimizar para a Bandeja', fechar o painel não encerra o aplicativo. Ele continuará funcionando oculto perto do relógio do Windows. Dê um duplo clique no ícone para reabrir o painel.</li>"
+            "</ul>"
+        )
+        obs_lbl = QLabel(obs_text)
+        obs_lbl.setWordWrap(True)
+        obs_lbl.setTextFormat(Qt.RichText)
+        obs_lay.addWidget(obs_lbl)
+        layout.addWidget(obs_group)
+
         # --- SEÇÃO: LÓGICA DE ÁUDIO ---
         audio_group = QGroupBox("🎙️ LÓGICA DE ÁUDIO")
         audio_lay = QVBoxLayout(audio_group)
         
-        # Trocado TEXT_SECONDARY por TEXT_MUTED para bater com sua classe Theme
         audio_text = (
             f"<p style='color: {Theme.TEXT_PRIMARY};'>A reação do avatar depende de como o som é processado:</p>"
             "<ul>"
             f"<li style='color: {Theme.TEXT_MUTED};'><b>Modo Standard:</b> Troca o sprite instantaneamente com o volume. Ideal para reações rápidas.</li>"
-            f"<li style='color: {Theme.TEXT_MUTED};'><b>Modo Suavizado:</b> Mantém o sprite de 'fala' por alguns milissegundos extras, "
-            "evitando oscilações bruscas em volumes instáveis.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Modo Suavizado:</b> Mantém o sprite de 'fala' por alguns milissegundos extras, evitando oscilações bruscas.</li>"
             f"<li style='color: {Theme.TEXT_MUTED};'><b>Thresholds:</b> Define os degraus de volume para as animações Baixa, Média e Alta.</li>"
             "</ul>"
         )
@@ -54,8 +69,8 @@ class HelpTab(QWidget):
             f"<p style='color: {Theme.TEXT_PRIMARY};'>Use a aba de efeitos para dar vida à sua stream:</p>"
             "<ul>"
             f"<li style='color: {Theme.TEXT_MUTED};'><b>Visual:</b> GIFs ou Imagens que aparecem sobre o avatar.</li>"
-            f"<li style='color: {Theme.TEXT_MUTED};'><b>Áudio:</b> Efeitos sonoros (SFX) disparados individualmente ou com visuais.</li>"
-            f"<li style='color: {Theme.TEXT_MUTED};'><b>Combos:</b> Dispara áudio e imagem ao mesmo tempo.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Áudio:</b> Efeitos sonoros disparados individualmente.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Combos:</b> Dispara áudio e imagem simultaneamente.</li>"
             "</ul>"
         )
         eff_lbl = QLabel(eff_text)

@@ -12,6 +12,7 @@ __pycache__/
 
 # Pastas
 profiles/
+#assets/
 
 # Arquivos de Configuração Local e Logs
 config.json
