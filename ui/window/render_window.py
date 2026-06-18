@@ -1,18 +1,81 @@
 import os
 from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QMovie, QIcon
-from PySide6.QtCore import Qt, QPoint, Signal
+from PySide6.QtGui import QMovie, QIcon, QPainter, QColor, QPainterPath
+from PySide6.QtCore import Qt, QPoint, Signal, QPointF
 
 from ui.styles.theme import Theme
 from ui.window.components.rw_rotatable_label import RotatableLabel
 from core.accessory_manager import AccessoryManager
 
+# === WIDGET: BARRA DE SOM COM NOVOS ESTILOS ===
+class VisualizerWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.bands = [0.0] * 8
+        self.style = "Clássico" 
+        self.bar_color = QColor(0, 255, 150, 220) 
+        self.setFixedSize(300, 100)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        w, h = self.width(), self.height()
+        num_bars = len(self.bands)
+        
+        if self.style == "Onda Contínua":
+            # Estilo fluido de onda conectando os pontos
+            path = QPainterPath()
+            step = w / max(1, num_bars - 1)
+            points = [QPointF(i * step, h - (self.bands[i] * h)) for i in range(num_bars)]
+            
+            path.moveTo(0, h)
+            path.lineTo(points[0])
+            for i in range(len(points) - 1):
+                p1, p2 = points[i], points[i+1]
+                ctrl1 = QPointF((p1.x() + p2.x()) / 2, p1.y())
+                ctrl2 = QPointF((p1.x() + p2.x()) / 2, p2.y())
+                path.cubicTo(ctrl1, ctrl2, p2)
+            
+            path.lineTo(w, h)
+            path.lineTo(0, h)
+            painter.setBrush(self.bar_color)
+            painter.setPen(Qt.NoPen)
+            painter.drawPath(path)
+            
+        elif self.style == "Pontos de Energia":
+            # Estilo com bolinhas que saltam
+            painter.setBrush(self.bar_color)
+            painter.setPen(Qt.NoPen)
+            spacing = 15
+            bar_w = (w - (spacing * (num_bars - 1))) / num_bars
+            for i, val in enumerate(self.bands):
+                bar_h = val * h
+                x = i * (bar_w + spacing)
+                radius = min(bar_w / 2, 8)
+                center_y = h - bar_h - radius
+                painter.drawEllipse(QPointF(x + radius, center_y), radius, radius)
+                # Rastro suave abaixo
+                painter.setOpacity(0.3)
+                painter.drawEllipse(QPointF(x + radius, center_y + (radius * 1.5)), radius * 0.7, radius * 0.7)
+                painter.setOpacity(1.0)
+                
+        else:
+            # Clássico e Neon Simétrico
+            spacing = 6
+            bar_w = (w - (spacing * (num_bars - 1))) / num_bars
+            for i, val in enumerate(self.bands):
+                bar_h = val * h
+                x = i * (bar_w + spacing)
+                
+                if self.style == "Neon Simétrico":
+                    painter.fillRect(int(x), int((h / 2) - (bar_h / 2)), int(bar_w), int(bar_h), self.bar_color)
+                else: # Clássico
+                    painter.fillRect(int(x), int(h - bar_h), int(bar_w), int(bar_h), self.bar_color)
+
+
 class RenderWindow(QWidget):
-    """
-    Janela de renderização principal (Overlay).
-    Responsável por exibir o avatar, gerenciar acessórios e lidar com
-    a interação do usuário (arrastar e posicionar).
-    """
     effectPositionChanged = Signal(int, int)
 
     def __init__(self, config_manager):
@@ -24,7 +87,6 @@ class RenderWindow(QWidget):
         self.setWindowTitle("PixelTuber - Avatar")
         self.setWindowIcon(QIcon("assets/AVATAR_ICON.ico"))
         
-        # Configurações de Janela: Sem Bordas e Sempre no Topo
         self.setWindowFlags(
             Qt.Window | Qt.FramelessWindowHint | 
             Qt.WindowStaysOnTopHint | Qt.CustomizeWindowHint
@@ -34,53 +96,45 @@ class RenderWindow(QWidget):
         self.canvas_size = 2048 
         self.setFixedSize(self.canvas_size, self.canvas_size)
         
-        # Label principal do Avatar
         self.main_label = RotatableLabel(self)
         self.main_label.setAlignment(Qt.AlignCenter)
         
-        # Gerenciador de Acessórios (Camadas extras)
         self.accessories = AccessoryManager(self, config_manager)
         
-        # Variáveis de controle de arrasto
         self._drag_target = None  
         self._drag_offset = QPoint()
 
-        # Posicionamento inicial
         r = self.cfg.data.get("render", {})
         self.move(r.get("x", 100), r.get("y", 100))
         
-        # Aplica a cor de fundo (Chroma Key ou Transparente)
         self.apply_chroma_key()
         self.update_geometry()
 
+        self.visualizer = VisualizerWidget(self)
+        self.visualizer.move((self.width() - self.visualizer.width()) // 2, (self.height() // 2) + 200)
+        self.visualizer.hide() 
+
     def apply_chroma_key(self):
-        """Define o fundo como transparente ou colorido para captura no OBS."""
         color = self.cfg.data.get("render", {}).get("chroma_key", "transparent")
-        
         if color == "transparent":
             self.setStyleSheet("background: transparent;")
         elif color == "green":
-            # Verde Chroma Key padrão
             self.setStyleSheet("background-color: #00FF00;")
         elif color == "magenta":
-            # Magenta puro
             self.setStyleSheet("background-color: #FF00FF;")
 
     def update_geometry(self):
-        """Atualiza o tamanho e a posição do avatar e acessórios com base na escala."""
         scale = self.cfg.data["render"].get("scale", 1.0)
         avatar_size = int(Theme.BASE_AVATAR_SIZE * scale)
         
         offset = (self.canvas_size - avatar_size) // 2
         self.main_label.setGeometry(offset, offset, avatar_size, avatar_size)
-        
         self.accessories.update(self.main_label)
         
         self.cfg.data["render"]["x"] = self.x()
         self.cfg.data["render"]["y"] = self.y()
 
     def set_animation(self, path, state=None):
-        """Define o GIF atual do avatar."""
         if state: self.current_state = state
 
         if not path or not os.path.exists(path):
@@ -100,8 +154,6 @@ class RenderWindow(QWidget):
             self.main_label.setMovie(target_movie)
             target_movie.start()
             self.raise_()
-
-    # --- Lógica de Interação e Movimento ---
 
     def mousePressEvent(self, event):
         if event.button() != Qt.LeftButton: return
@@ -149,6 +201,5 @@ class RenderWindow(QWidget):
                 c["rel_y"] = center_y - avatar_center_y
 
     def mouseReleaseEvent(self, event):
-        if self._drag_target:
-            self.cfg.save()
+        if self._drag_target: self.cfg.save()
         self._drag_target = None

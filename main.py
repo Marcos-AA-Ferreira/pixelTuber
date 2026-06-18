@@ -1,6 +1,7 @@
 import sys
 import ctypes
 import os
+import random 
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import QTimer
@@ -34,7 +35,8 @@ class PixelTuberApp:
         # 2. Inicializar Motores de Áudio e Animação
         audio_cfg = self.config.data.get("audio", {})
         self.audio = AudioManager(
-            device_index=audio_cfg.get("device"),
+            # 🔥 CORREÇÃO: Chave "device_index" agora bate com o que é salvo no painel
+            device_index=audio_cfg.get("device_index"), 
             gain=audio_cfg.get("gain", 1.0)
         )
         self.anim_logic = AnimationManager(self.config)
@@ -62,8 +64,6 @@ class PixelTuberApp:
         
         # 6. Bandeja do Sistema
         self.setup_tray()
-        
-        # Variável para o Auto-Ducking da música de fundo
         self.current_duck_multiplier = 1.0
         
         # 7. Aplicação do Estado Inicial
@@ -118,36 +118,50 @@ class PixelTuberApp:
 
     def update_loop(self):
         """Atualiza a lógica visual e gerencia interações de áudio a cada frame."""
-        # 1. Processamento de Voz -> GIF do Avatar
         vol = self.audio.get_volume()
         path = self.anim_logic.get_current_path(vol)
         if path:
             self.render.set_animation(path)
-            
-        # 2. Lógica de Auto-Ducking (Abaixar a música de fundo quando fala)
-        # Pega as configurações base independentemente de estar tocando ou não
+
+        # 1. Lógica do Auto-Ducking
         bg_muted = self.config.data.get("bg_music_muted", False)
         base_vol = self.config.data.get("bg_music_vol", 50)
+        ducking_enabled = self.config.data.get("audio", {}).get("auto_ducking", True)
         
-        if not bg_muted and hasattr(self.bg_window, 'audio'):
-            # Se a voz passar do gate (0.02 ou customizado), reduz para 30% do volume original
-            target_duck = 0.3 if vol > self.audio.noise_threshold else 1.0
+        if hasattr(self.bg_window, 'audio') and not bg_muted:
+            if ducking_enabled:
+                target_duck = 0.3 if vol > self.audio.noise_threshold else 1.0
+                self.current_duck_multiplier += (target_duck - self.current_duck_multiplier) * 0.1
+                final_vol = base_vol * self.current_duck_multiplier
+                self.bg_window.audio.audio_output.setVolume(final_vol / 100.0)
+            else:
+                self.bg_window.audio.audio_output.setVolume(base_vol / 100.0)
             
-            # Interpolação matemática para não dar um corte seco no som (easing de 10% por frame)
-            self.current_duck_multiplier += (target_duck - self.current_duck_multiplier) * 0.1
+        # 2. Lógica Segura da Barra de Som (Visualizador)
+        if hasattr(self.render, 'visualizer'):
+            vis_config = self.config.data.get("visualizer", {})
+            is_vis_enabled = vis_config.get("enabled", False)
             
-            # Aplica o volume final recalculado no player
-            final_vol = base_vol * self.current_duck_multiplier
-            self.bg_window.audio.audio_output.setVolume(final_vol / 100.0)
-            
+            if is_vis_enabled:
+                self.render.visualizer.show()
+                self.render.visualizer.style = vis_config.get("style", "Clássico")
+                
+                # Usa as bandas reais do microfone
+                if hasattr(self.audio, 'eq_bands') and self.audio.eq_bands:
+                    self.render.visualizer.bands = self.audio.eq_bands
+                else:
+                    self.render.visualizer.bands = [0.0] * 8
+                        
+                self.render.visualizer.update()
+            else:
+                self.render.visualizer.hide()
+
         # 3. Atualização dos Acessórios
         self.render.accessories.update(self.render.main_label) 
         
-        # 4. Feedback Visual no Painel
         if self.panel.isVisible():
             self.panel.update_ui_feedback()
             
-        # 5. Checagem periódica de configurações de sistema
         self.frame_count += 1
         if self.frame_count >= 60:
             self.apply_fps_limit()

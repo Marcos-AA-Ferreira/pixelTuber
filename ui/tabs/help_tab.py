@@ -61,6 +61,25 @@ class HelpTab(QWidget):
         audio_lay.addWidget(audio_lbl)
         layout.addWidget(audio_group)
 
+        # --- NOVA SEÇÃO: VISUALIZADOR DE ÁUDIO ---
+        visualizer_group = QGroupBox("📊 VISUALIZADOR DE ÁUDIO (BARRAS DE SOM)")
+        visualizer_lay = QVBoxLayout(visualizer_group)
+        
+        visualizer_text = (
+            f"<p style='color: {Theme.TEXT_PRIMARY};'>Equalizador gráfico em tempo real acoplado ao seu avatar:</p>"
+            "<ul>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Estilo Clássico:</b> Barras de espectro tradicionais que sobem a partir da base conforme a intensidade da voz.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Estilo Simétrico:</b> As barras expandem-se verticalmente a partir do centro para cima e para baixo simultaneamente, gerando um efeito de onda moderno.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Estilo Picos:</b> Exibe apenas pequenas linhas flutuantes horizontais que representam a altura máxima atingida pela frequência de áudio atual.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Interação de Clique:</b> O widget ignora cliques físicos do mouse. Isso significa que você pode clicar através dele e arrastar seu avatar normalmente sem bloqueios de interface.</li>"
+            "</ul>"
+        )
+        visualizer_lbl = QLabel(visualizer_text)
+        visualizer_lbl.setWordWrap(True)
+        visualizer_lbl.setTextFormat(Qt.RichText)
+        visualizer_lay.addWidget(visualizer_lbl)
+        layout.addWidget(visualizer_group)
+
         # --- SEÇÃO: SISTEMA DE EFEITOS ---
         effects_group = QGroupBox("🚀 SISTEMA DE EFEITOS")
         eff_lay = QVBoxLayout(effects_group)
