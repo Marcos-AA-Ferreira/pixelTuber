@@ -61,17 +61,17 @@ class HelpTab(QWidget):
         audio_lay.addWidget(audio_lbl)
         layout.addWidget(audio_group)
 
-        # --- NOVA SEÇÃO: VISUALIZADOR DE ÁUDIO ---
-        visualizer_group = QGroupBox("📊 VISUALIZADOR DE ÁUDIO (BARRAS DE SOM)")
+        # --- SEÇÃO: VISUALIZADOR DE ÁUDIO (ATUALIZADO) ---
+        visualizer_group = QGroupBox("📊 INDICADORES DE ÁUDIO")
         visualizer_lay = QVBoxLayout(visualizer_group)
         
         visualizer_text = (
             f"<p style='color: {Theme.TEXT_PRIMARY};'>Equalizador gráfico em tempo real acoplado ao seu avatar:</p>"
             "<ul>"
             f"<li style='color: {Theme.TEXT_MUTED};'><b>Estilo Clássico:</b> Barras de espectro tradicionais que sobem a partir da base conforme a intensidade da voz.</li>"
-            f"<li style='color: {Theme.TEXT_MUTED};'><b>Estilo Simétrico:</b> As barras expandem-se verticalmente a partir do centro para cima e para baixo simultaneamente, gerando um efeito de onda moderno.</li>"
-            f"<li style='color: {Theme.TEXT_MUTED};'><b>Estilo Picos:</b> Exibe apenas pequenas linhas flutuantes horizontais que representam a altura máxima atingida pela frequência de áudio atual.</li>"
-            f"<li style='color: {Theme.TEXT_MUTED};'><b>Interação de Clique:</b> O widget ignora cliques físicos do mouse. Isso significa que você pode clicar através dele e arrastar seu avatar normalmente sem bloqueios de interface.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Neon Simétrico:</b> As barras expandem-se a partir do centro, gerando um efeito espelhado e moderno.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Onda Contínua:</b> Uma linha fluida e dinâmica que conecta as frequências sonoras.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Pontos de Energia:</b> Partículas circulares que saltam e deixam um rastro suave conforme a intensidade da voz.</li>"
             "</ul>"
         )
         visualizer_lbl = QLabel(visualizer_text)
@@ -80,16 +80,34 @@ class HelpTab(QWidget):
         visualizer_lay.addWidget(visualizer_lbl)
         layout.addWidget(visualizer_group)
 
-        # --- SEÇÃO: SISTEMA DE EFEITOS ---
+        # --- SEÇÃO: ACESSÓRIOS (NOVO) ---
+        acc_group = QGroupBox("🎩 ACESSÓRIOS E GUARDA-ROUPA")
+        acc_lay = QVBoxLayout(acc_group)
+        
+        acc_text = (
+            f"<p style='color: {Theme.TEXT_PRIMARY};'>Controlos avançados para personalizar o avatar:</p>"
+            "<ul>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Z-Index (Profundidade):</b> Define se um item fica na frente ou atrás do avatar. Valores maiores ficam por cima, valores negativos ficam por trás.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Opacidade:</b> Permite criar elementos semi-transparentes (como óculos escuros ou efeitos de aura).</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Travar Posição:</b> Fixa o acessório em relação ao centro do avatar, fazendo com que o item se mova junto com o personagem pela tela.</li>"
+            "</ul>"
+        )
+        acc_lbl = QLabel(acc_text)
+        acc_lbl.setWordWrap(True)
+        acc_lbl.setTextFormat(Qt.RichText)
+        acc_lay.addWidget(acc_lbl)
+        layout.addWidget(acc_group)
+
+        # --- SEÇÃO: SISTEMA DE EFEITOS (ATUALIZADO) ---
         effects_group = QGroupBox("🚀 SISTEMA DE EFEITOS")
         eff_lay = QVBoxLayout(effects_group)
         
         eff_text = (
-            f"<p style='color: {Theme.TEXT_PRIMARY};'>Use a aba de efeitos para dar vida à sua stream:</p>"
+            f"<p style='color: {Theme.TEXT_PRIMARY};'>Use a janela flutuante para dar vida à sua stream:</p>"
             "<ul>"
-            f"<li style='color: {Theme.TEXT_MUTED};'><b>Visual:</b> GIFs ou Imagens que aparecem sobre o avatar.</li>"
-            f"<li style='color: {Theme.TEXT_MUTED};'><b>Áudio:</b> Efeitos sonoros disparados individualmente.</li>"
-            f"<li style='color: {Theme.TEXT_MUTED};'><b>Combos:</b> Dispara áudio e imagem simultaneamente.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Recorte de Áudio:</b> Utilize a barra de progresso verde para definir exatamente onde o som deve começar e terminar, sem precisar editar o ficheiro original.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Testar Visual:</b> Clique no botão com o ícone de olho para pré-visualizar o efeito na tela antes de guardá-lo.</li>"
+            f"<li style='color: {Theme.TEXT_MUTED};'><b>Combos:</b> Dispare áudio e imagem simultaneamente pressionando o atalho configurado.</li>"
             "</ul>"
         )
         eff_lbl = QLabel(eff_text)
@@ -99,7 +117,7 @@ class HelpTab(QWidget):
         layout.addWidget(effects_group)
 
         # --- SEÇÃO: COMANDOS ---
-        cmd_group = QGroupBox("⌨️ COMANDOS E CONTROLE")
+        cmd_group = QGroupBox("⌨️ COMANDOS E CONTROLO")
         cmd_lay = QVBoxLayout(cmd_group)
         
         cmd_text = (

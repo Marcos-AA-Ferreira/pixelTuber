@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTabWidget, QScrollArea, 
-                             QGridLayout, QMessageBox, QFrame, QGroupBox, QLabel)
+                             QGridLayout, QMessageBox, QFrame, QGroupBox, QPushButton)
 from PySide6.QtCore import Qt
 from ui.styles.theme import Theme
 from .effects_tab_component.effect_creator import EffectCreator
@@ -16,39 +16,35 @@ class EffectsTab(QWidget):
         if "custom_effects" not in self.profile:
             self.profile["custom_effects"] = {}
 
-        # Aplica o estilo visual do tema
         self.setStyleSheet(Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX)
         self.init_ui()
 
     def init_ui(self):
         layout_principal = QVBoxLayout(self)
+        layout_principal.setContentsMargins(15, 15, 15, 15)
+        layout_principal.setSpacing(15)
+
+        # --- BOTÃO PRINCIPAL (NOVA JANELA) ---
+        self.btn_new = QPushButton("➕ CRIAR NOVO EFEITO")
+        self.btn_new.setStyleSheet("""
+            QPushButton {
+                background-color: #238636; color: white; font-weight: bold; 
+                font-size: 14px; padding: 15px; border-radius: 6px; border: none;
+            }
+            QPushButton:hover { background-color: #2ea043; }
+        """)
+        self.btn_new.clicked.connect(self.open_creator)
+        layout_principal.addWidget(self.btn_new)
         
-        # --- ÁREA DE SCROLL PRINCIPAL ---
+        # --- ÁREA DE SCROLL DA BIBLIOTECA ---
         self.main_scroll = QScrollArea()
         self.main_scroll.setWidgetResizable(True)
         self.main_scroll.setFrameShape(QFrame.NoFrame)
         
         container = QWidget()
         main_lay = QVBoxLayout(container)
-        main_lay.setContentsMargins(10, 10, 10, 10)
-        main_lay.setSpacing(20)
+        main_lay.setContentsMargins(0, 0, 0, 0)
 
-        # --- SEÇÃO DO CRIADOR/EDITOR ---
-        self.creator_group = QGroupBox("✨ GESTÃO DE EFEITO")
-        creator_layout = QVBoxLayout(self.creator_group)
-        
-        self.creator = EffectCreator(self.hotkeys)
-        self.creator.effect_created.connect(self.add_new_effect)
-        self.creator.test_requested.connect(self.preview_effect)
-        
-        # SISTEMA DE POSIÇÃO DINÂMICO
-        # Conecta o sinal global da Overlay para tratar o salvamento de coordenadas
-        self.overlay.positionUpdated.connect(self._handle_position_update)
-        
-        creator_layout.addWidget(self.creator)
-        main_lay.addWidget(self.creator_group)
-
-        # --- BIBLIOTECA DE EFEITOS SALVOS ---
         self.library_group = QGroupBox("📚 MINHA BIBLIOTECA")
         library_layout = QVBoxLayout(self.library_group)
 
@@ -83,29 +79,33 @@ class EffectsTab(QWidget):
         self.main_scroll.setWidget(container)
         layout_principal.addWidget(self.main_scroll)
         
+        # Conecta o sinal global da Overlay para tratar o salvamento de coordenadas
+        self.overlay.positionUpdated.connect(self._handle_position_update)
+        
         self.refresh_list()
 
-    def _handle_position_update(self, eid, x, y):
-        """
-        Lógica inteligente de posição:
-        1. Se for preview, apenas atualiza os campos numéricos no criador.
-        2. Se for um efeito salvo, grava a nova posição permanentemente no config.json.
-        """
-        if eid == "preview":
-            if hasattr(self.creator, "visual_module"):
-                self.creator.visual_module.update_position_fields(x, y)
+    def open_creator(self, eid=None, data=None):
+        """Instancia e abre o QDialog (Janela Modal) para criar/editar efeitos."""
+        dialog = EffectCreator(self.hotkeys, self)
         
-        elif eid in self.profile["custom_effects"]:
-            # Atualiza os dados na memória
+        # Se for edição, carrega os dados no modal
+        if eid and data:
+            dialog.load_effect(eid, data)
+            
+        dialog.effect_created.connect(self.add_new_effect)
+        dialog.test_requested.connect(self.preview_effect)
+        dialog.exec() # Pausa a interface de trás até a janela fechar
+
+    def _handle_position_update(self, eid, x, y):
+        # Ignoramos "preview_temp" já que ele só ocorre enquanto o modal de teste está aberto
+        if eid in self.profile["custom_effects"]:
             self.profile["custom_effects"][eid]["x"] = x
             self.profile["custom_effects"][eid]["y"] = y
-            # Salva no arquivo para que na próxima execução ele apareça aqui
             self.cfg.save()
 
     def preview_effect(self, data):
-        """Executa o teste do efeito com as configurações atuais do criador."""
         self.overlay.play_effect(
-            effect_id="preview", # Identificador para o preview
+            effect_id="preview_temp", 
             visual_path=data.get('visual', ''),
             audio_path=data.get('audio', ''),
             duration=data.get('duration', 4000),
@@ -118,37 +118,30 @@ class EffectsTab(QWidget):
         )
 
     def add_new_effect(self, data):
-        """Adiciona ou atualiza um efeito e registra o atalho de teclado."""
         eid = data.pop("id")
         data["type"] = self._determine_effect_type(data)
         
-        # Limpa o atalho antigo se estiver editando para evitar conflitos
         if eid in self.profile["custom_effects"]:
             self.hotkeys.remove_custom_hotkey(eid)
 
-        # Salva os novos dados
         self.profile["custom_effects"][eid] = data
         
-        # Registra o novo atalho no sistema global
         if data.get("hotkey"):
             self.hotkeys.register_custom_effect(eid, data["hotkey"], data)
         
         self.cfg.save() 
         self.refresh_list()
         
-        # Foca na aba correspondente ao tipo salvo
         tab_idx = {"visual": 0, "audio": 1, "combo": 2}.get(data["type"], 0)
         self.tabs.setCurrentIndex(tab_idx)
 
     def _determine_effect_type(self, data):
-        """Classifica o efeito com base nos arquivos anexados."""
         has_v = bool(data.get("visual"))
         has_a = bool(data.get("audio"))
         if has_v and has_a: return "combo"
         return "audio" if has_a else "visual"
 
     def refresh_list(self):
-        """Limpa e reconstrói a grade de cards da biblioteca."""
         for g in self.grids.values():
             while g.count():
                 child = g.takeAt(0)
@@ -163,22 +156,16 @@ class EffectsTab(QWidget):
             
             card = EffectCard(eid, d, self.overlay)
             card.clicked_delete.connect(self.remove_effect)
-            card.clicked_edit.connect(lambda e=eid, data=d: self.edit_existing_effect(e, data))
             
-            row, col = divmod(counts[t], 3)
+            # Ao invés de mandar para o painel antigo, agora chama o modal `open_creator`
+            card.clicked_edit.connect(lambda e=eid, data=d: self.open_creator(e, data))
+            
+            # Acomoda até 4 cards na mesma linha graças à aba maior
+            row, col = divmod(counts[t], 4) 
             self.grids[t].addWidget(card, row, col)
             counts[t] += 1
 
-    def edit_existing_effect(self, eid, data):
-        """Carrega os dados de um efeito salvo de volta para o editor superior."""
-        if hasattr(self.creator, "load_effect"):
-            # O EffectCreator deve lidar com a exibição do caminho do áudio existente
-            self.creator.load_effect(eid, data)
-            # Rola a tela para cima para facilitar a edição
-            self.main_scroll.verticalScrollBar().setValue(0)
-
     def remove_effect(self, eid):
-        """Remove o efeito e seu atalho global."""
         if QMessageBox.question(self, "Confirmar", "Deseja excluir este efeito?") == QMessageBox.Yes:
             self.hotkeys.remove_custom_hotkey(eid)
             if eid in self.profile["custom_effects"]:

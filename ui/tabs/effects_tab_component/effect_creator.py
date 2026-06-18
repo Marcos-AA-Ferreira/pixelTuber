@@ -1,8 +1,8 @@
 import uuid
 import os
-from PySide6.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLineEdit, 
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, 
                              QPushButton, QLabel, QMessageBox, QFileDialog, 
-                             QSpinBox, QCheckBox, QStackedWidget, QWidget)
+                             QCheckBox, QStackedWidget, QWidget)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeyEvent, QKeySequence, QIcon
 
@@ -13,23 +13,29 @@ except ImportError:
     from visual_section import VisualSection
     from audio_section import AudioSection
 
-class EffectCreator(QFrame):
+class EffectCreator(QDialog):
     effect_created = Signal(dict)
     test_requested = Signal(dict)
 
-    def __init__(self, hotkey_manager):
-        super().__init__()
+    def __init__(self, hotkey_manager, parent=None):
+        super().__init__(parent)
         self.hotkeys = hotkey_manager
         self.editing_id = None
         self.temp_hotkey = ""
         self.icon_path = "" 
+        
+        # Configurações da Janela Modal (Pop-up)
+        self.setWindowTitle("Configurar Efeito Customizado")
+        self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+        self.setModal(True) # Bloqueia a janela de trás enquanto esta estiver aberta
+        self.setMinimumWidth(500)
         
         self.init_ui()
 
     def init_ui(self):
         self.setObjectName("MainForm")
         self.setStyleSheet("""
-            #MainForm { background-color: #2b2b2b; border-radius: 12px; border: 1px solid #3d3d3d; }
+            #MainForm { background-color: #2b2b2b; }
             QLineEdit { 
                 padding: 10px; border-radius: 6px; background: #1a1a1a; color: white; border: 1px solid #444; 
             }
@@ -37,7 +43,7 @@ class EffectCreator(QFrame):
             #SubLabel { color: #8b949e; font-size: 10px; font-weight: bold; text-transform: uppercase; }
             
             /* Botões de Modo */
-            #ModeBtn { background: #3d3d3d; border: 1px solid #555; padding: 5px; font-size: 10px; border-radius: 4px; }
+            #ModeBtn { background: #3d3d3d; border: 1px solid #555; padding: 5px; font-size: 10px; border-radius: 4px; color: white;}
             #ModeBtn:checked { background: #1f6feb; border-color: #58a6ff; }
 
             /* Botões de Duração (+ / -) */
@@ -52,17 +58,14 @@ class EffectCreator(QFrame):
                 font-size: 14px; border: 1px solid #444; border-radius: 6px; padding: 5px 15px;
             }
 
-            #SaveBtn { background: #238636; color: white; font-weight: bold; font-size: 12px; }
+            #SaveBtn { background: #238636; color: white; font-weight: bold; font-size: 12px; border-radius: 6px; padding: 10px; }
+            #CancelBtn { background: transparent; color: #f85149; font-weight: bold; border: 1px solid #f85149; border-radius: 6px; padding: 10px; }
+            #CancelBtn:hover { background: #f85149; color: white; }
         """)
         
         main_lay = QVBoxLayout(self)
         main_lay.setContentsMargins(30, 30, 30, 30)
         main_lay.setSpacing(20)
-
-        # --- CABEÇALHO ---
-        self.header_label = QLabel("🚀 CONFIGURAR EFEITO")
-        self.header_label.setObjectName("Title")
-        main_lay.addWidget(self.header_label)
 
         # --- NOME E ATALHO ---
         row1 = QHBoxLayout()
@@ -72,6 +75,7 @@ class EffectCreator(QFrame):
         self.btn_capture = QPushButton("⌨️ ATALHO")
         self.btn_capture.setCheckable(True)
         self.btn_capture.setFixedWidth(100)
+        self.btn_capture.setStyleSheet("background: #3d3d3d; color: white; border-radius: 6px;")
         self.btn_capture.clicked.connect(self.start_capture)
         
         self.lbl_hk = QLabel("NENHUM")
@@ -85,7 +89,7 @@ class EffectCreator(QFrame):
         # --- SEÇÃO DE CONFIGURAÇÃO (ÍCONE E DURAÇÃO) ---
         config_lay = QHBoxLayout()
         
-        # 1. SELETOR DE ÍCONE (MODO EMOJI OU IMAGEM)
+        # 1. SELETOR DE ÍCONE
         icon_box = QVBoxLayout()
         icon_box.addWidget(QLabel("ÍCONE DO CARD", objectName="SubLabel"))
         
@@ -114,13 +118,14 @@ class EffectCreator(QFrame):
         self.icon_stack.addWidget(self.emoji_in)
         
         self.btn_select_img = QPushButton("📁 BUSCAR IMAGEM")
+        self.btn_select_img.setStyleSheet("background: #3d3d3d; color: white; border-radius: 6px; padding: 5px;")
         self.btn_select_img.clicked.connect(self.select_icon_image)
         self.icon_stack.addWidget(self.btn_select_img)
         
         icon_box.addWidget(self.icon_stack)
         config_lay.addLayout(icon_box, 1)
 
-        # 2. SELETOR DE DURAÇÃO (+ / -)
+        # 2. SELETOR DE DURAÇÃO
         dur_box = QVBoxLayout()
         dur_box.addWidget(QLabel("DURAÇÃO (MS)", objectName="SubLabel"))
         
@@ -144,7 +149,7 @@ class EffectCreator(QFrame):
 
         self.sync_check = QCheckBox("Sincronizar Áudio")
         self.sync_check.setChecked(True)
-        self.sync_check.setStyleSheet("color: #888; font-size: 9px;")
+        self.sync_check.setStyleSheet("color: #888; font-size: 11px;")
         dur_box.addWidget(self.sync_check, 0, Qt.AlignCenter)
 
         config_lay.addLayout(dur_box, 1)
@@ -154,21 +159,26 @@ class EffectCreator(QFrame):
         self.visual_module = VisualSection()
         self.audio_module = AudioSection()
         
-        # --- CONEXÕES DE SINAIS (AJUSTADO) ---
         self.audio_module.trimmer.valuesChanged.connect(self.auto_sync_duration)
-        self.visual_module.previewRequested.connect(self.request_test) # <--- CONEXÃO ADICIONADA
+        self.visual_module.previewRequested.connect(self.request_test) 
         
         main_lay.addWidget(self.visual_module)
         main_lay.addWidget(self.audio_module)
 
-        # --- SALVAR ---
+        # --- BOTÕES FINAIS ---
+        action_lay = QHBoxLayout()
+        self.btn_cancel = QPushButton("CANCELAR")
+        self.btn_cancel.setObjectName("CancelBtn")
+        self.btn_cancel.clicked.connect(self.reject) # Fecha janela sem salvar
+        
         self.btn_save = QPushButton("✨ SALVAR EFEITO")
         self.btn_save.setObjectName("SaveBtn")
-        self.btn_save.setFixedHeight(40)
         self.btn_save.clicked.connect(self.submit)
-        main_lay.addWidget(self.btn_save)
+        
+        action_lay.addWidget(self.btn_cancel)
+        action_lay.addWidget(self.btn_save)
+        main_lay.addLayout(action_lay)
 
-    # --- LÓGICA DE DURAÇÃO ---
     def adjust_duration(self, delta):
         current = int(self.dur_display.text())
         new_val = max(100, min(60000, current + delta))
@@ -180,13 +190,10 @@ class EffectCreator(QFrame):
             if duration_ms > 0:
                 self.dur_display.setText(str(duration_ms))
 
-    # --- LÓGICA DE TESTE (MÉTODO ADICIONADO) ---
     def request_test(self):
-        """Coleta dados para o overlay sem exigir preenchimento total (ex: nome)."""
         v_data = self.visual_module.get_data()
         a_data = self.audio_module.get_data()
         
-        # Criamos o pacote de dados para o overlay
         test_data = {
             "id": "preview_temp",
             "name": self.name_in.text().strip() or "Teste Visual",
@@ -198,7 +205,6 @@ class EffectCreator(QFrame):
             **a_data
         }
         
-        # Só emite o sinal se houver um arquivo visual selecionado
         if v_data.get("visual"):
             self.test_requested.emit(test_data)
 
@@ -218,7 +224,7 @@ class EffectCreator(QFrame):
         if path:
             self.icon_path = path
             self.btn_select_img.setText(f"✅ {os.path.basename(path)[:15]}...")
-            self.request_test() # Atualiza o preview ao selecionar imagem
+            self.request_test() 
 
     def _collect_data(self):
         name = self.name_in.text().strip()
@@ -259,7 +265,7 @@ class EffectCreator(QFrame):
         data = self._collect_data()
         if data:
             self.effect_created.emit(data)
-            self.reset_form()
+            self.accept() # Fecha a janela modal após salvar
 
     def load_effect(self, eid, data):
         self.editing_id = eid
@@ -278,14 +284,3 @@ class EffectCreator(QFrame):
         self.dur_display.setText(str(data.get("duration", 4000)))
         self.visual_module.load_data(data)
         self.audio_module.load_data(data.get("audio", ""), data.get("audio_start", 0.0), data.get("audio_end", 0.0))
-
-    def reset_form(self):
-        self.editing_id = None
-        self.name_in.clear()
-        self.emoji_in.clear()
-        self.switch_icon_mode("emoji")
-        self.dur_display.setText("4000")
-        self.temp_hotkey = ""
-        self.lbl_hk.setText("NENHUM")
-        self.visual_module.reset()
-        self.audio_module.reset()
