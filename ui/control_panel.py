@@ -10,7 +10,7 @@ from ui.tabs.background_tab import BackgroundTab
 from ui.tabs.help_tab import HelpTab
 
 class ControlPanel(QWidget):
-    def __init__(self, config_manager, audio, render, effects, hotkeys, overlay, bg_window):
+    def __init__(self, config_manager, audio, render, effects, hotkeys, anim_logic, overlay, bg_window):
         # Inicializado sem parent para ser uma janela totalmente independente
         super().__init__(None)
         
@@ -40,26 +40,11 @@ class ControlPanel(QWidget):
 
         main_layout = QVBoxLayout(self)
 
-        # --- BOTÃO SALVAR ---
-        '''self.btn_save = QPushButton("💾 SALVAR TODAS AS CONFIGURAÇÕES")
-        self.btn_save.setFixedHeight(45)
-        self.btn_save.setStyleSheet("""
-            QPushButton { 
-                background-color: #28a745; 
-                color: white; 
-                font-weight: bold; 
-                border-radius: 5px; 
-            }
-            QPushButton:hover { background-color: #218838; }
-        """)
-        self.btn_save.clicked.connect(self.save_settings)
-        main_layout.addWidget(self.btn_save)'''
-
         # --- SISTEMA DE ABAS ---
         self.tabs = QTabWidget()
         
         # Instanciando abas
-        self.avatar_tab = AvatarTab(self.config_manager, self.render, self.audio, self.hotkeys)
+        self.avatar_tab = AvatarTab(self.config_manager, self.render, self.audio, self.hotkeys, anim_logic)
         self.settings_tab = SettingsTab(self.config_manager, self.render, self.hotkeys)
         self.audio_tab = AudioTab(self.config_manager, self.audio)
         self.effects_tab = EffectsTab(self.config_manager, self.effects, self.hotkeys)

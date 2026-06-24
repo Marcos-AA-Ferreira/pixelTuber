@@ -35,16 +35,19 @@ class PixelTuberApp:
         # 2. Inicializar Motores de Áudio e Animação
         audio_cfg = self.config.data.get("audio", {})
         self.audio = AudioManager(
-            # 🔥 CORREÇÃO: Chave "device_index" agora bate com o que é salvo no painel
-            device_index=audio_cfg.get("device_index"), 
+            device_index=audio_cfg.get("device_index"),
             gain=audio_cfg.get("gain", 1.0)
         )
-        self.anim_logic = AnimationManager(self.config)
-        
+        # REMOVA O self.anim_logic DAQUI!
+
         # 3. Inicializar Janelas
         self.bg_window = BackgroundWindow()
         self.render = RenderWindow(self.config)
         self.overlay = FullScreenOverlay()
+
+        # ---> ADICIONE AQUI! <---
+        # Agora o self.render já existe e pode ser passado para o manager
+        self.anim_logic = AnimationManager(self.config, self.render)
         
         # 4. Inicializar Gerenciadores de Lógica
         self.effects = EffectManager(self.overlay)
@@ -56,7 +59,8 @@ class PixelTuberApp:
             self.config, 
             self.audio, 
             self.render, 
-            self.effects, 
+            self.effects,
+            self.anim_logic,
             self.hotkeys,
             overlay=self.overlay,
             bg_window=self.bg_window
@@ -71,6 +75,10 @@ class PixelTuberApp:
         bg_path = self.config.data.get("bg_path")
         if validate_path(bg_path):
             self.bg_window.set_background(bg_path)
+            
+        # --- MUDANÇA 2: FORÇAR O AVATAR A APARECER LOGO DE CARA ---
+        main_set = self.config.data.get("animations", {}).get("main_set", "default")
+        self.anim_logic.set_active_set(main_set)
 
         # 8. Exibição das Janelas
         self.bg_window.show()
@@ -119,10 +127,13 @@ class PixelTuberApp:
     def update_loop(self):
         """Atualiza a lógica visual e gerencia interações de áudio a cada frame."""
         vol = self.audio.get_volume()
+        
+        # --- MUDANÇA 1: CÓDIGO DESCOMENTADO ---
         path = self.anim_logic.get_current_path(vol)
         if path:
-            self.render.set_animation(path)
-
+            # Passamos também o estado (fala, mudo) para a UI acender a cor verde certa
+            self.render.set_animation(path, getattr(self.anim_logic, "last_state", None))
+        
         # 1. Lógica do Auto-Ducking
         bg_muted = self.config.data.get("bg_music_muted", False)
         base_vol = self.config.data.get("bg_music_vol", 50)

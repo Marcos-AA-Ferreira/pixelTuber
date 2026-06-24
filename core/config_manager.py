@@ -3,7 +3,7 @@ import json
 import os
 
 class ConfigManager:
-    def __init__(self, profiles_dir="profiles", main_config="config.json"):
+    def __init__(self, profiles_dir="profiles", main_config="config/config.json"):
         self.profiles_dir = profiles_dir
         self.current_path = main_config
         

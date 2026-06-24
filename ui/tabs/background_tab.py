@@ -1,7 +1,7 @@
 import os
 import glob
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, 
-                             QFileDialog, QHBoxLayout, QSlider, QComboBox, 
+                             QFileDialog, QHBoxLayout, QComboBox, 
                              QFrame, QCheckBox, QGroupBox, QScrollArea, QStyle, QStyleOptionSlider,
                              QGraphicsOpacityEffect)
 from PySide6.QtCore import Qt, QSize, QTime, QPropertyAnimation, QTimer
@@ -9,10 +9,12 @@ from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtMultimedia import QMediaMetaData, QMediaPlayer
 
 from ui.tabs.background_tab_component.music_toast import MusicToast
+from ui.widgets.labeled_slider import LabeledSlider
 from ui.styles.theme import Theme
 from core.utils import validate_path
 
 # --- CLASSE AUXILIAR DE SLIDER ---
+from PySide6.QtWidgets import QSlider
 class ClickableSlider(QSlider):
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -25,6 +27,7 @@ class ClickableSlider(QSlider):
                 self.setValue(new_val)
                 self.sliderMoved.emit(new_val)
         super().mousePressEvent(event)
+
 
 # --- ABA PRINCIPAL ---
 class BackgroundTab(QWidget):
@@ -122,8 +125,14 @@ class BackgroundTab(QWidget):
         self.combo_layer.currentIndexChanged.connect(self.update_settings)
         render_lay.addWidget(self.combo_layer)
 
-        self.slider_alpha = self.create_slider(0, 100, "bg_opacity", 100, render_lay, "Nível de Opacidade:")
-        self.slider_blur = self.create_slider(0, 50, "bg_blur", 0, render_lay, "Intensidade do Desfoque:")
+        # --- APLICAÇÃO DO LABELEDSLIDER ---
+        self.slider_alpha = LabeledSlider("Nível de Opacidade:", min_val=0, max_val=100, default_val=self.cfg.data.get("bg_opacity", 100), value_format="{v}%")
+        self.slider_alpha.valueChanged.connect(self.update_settings)
+        render_lay.addWidget(self.slider_alpha)
+
+        self.slider_blur = LabeledSlider("Intensidade do Desfoque:", min_val=0, max_val=50, default_val=self.cfg.data.get("bg_blur", 0), value_format="{v} px")
+        self.slider_blur.valueChanged.connect(self.update_settings)
+        render_lay.addWidget(self.slider_blur)
         
         bg_layout.addWidget(render_frame)
         layout.addWidget(bg_group)
@@ -134,7 +143,7 @@ class BackgroundTab(QWidget):
         audio_group = QGroupBox("🎵 TRILHA SONORA E NOTIFICAÇÃO")
         audio_layout = QVBoxLayout(audio_group)
         
-        # NOVO: Controle de Posição da Notificação
+        # Controle de Posição da Notificação
         pos_row = QHBoxLayout()
         pos_row.addWidget(QLabel("Posição da Notificação (Toast):"))
         self.pos_combo = QComboBox()
@@ -201,17 +210,16 @@ class BackgroundTab(QWidget):
         audio_layout.addLayout(music_actions)
 
         vol_row = QHBoxLayout()
-        self.slider_music_vol = QSlider(Qt.Horizontal)
-        self.slider_music_vol.setRange(0, 100)
-        self.slider_music_vol.setValue(self.cfg.data["bg_music_vol"])
+        
+        # --- APLICAÇÃO DO LABELEDSLIDER ---
+        self.slider_music_vol = LabeledSlider("Volume Principal:", min_val=0, max_val=100, default_val=self.cfg.data.get("bg_music_vol", 50), value_format="{v}%")
         self.slider_music_vol.valueChanged.connect(self.update_settings)
         
         self.check_mute = QCheckBox("🔇 Mudo")
         self.check_mute.setChecked(self.cfg.data["bg_music_muted"])
         self.check_mute.stateChanged.connect(self.update_settings)
         
-        vol_row.addWidget(QLabel("Volume Principal:"))
-        vol_row.addWidget(self.slider_music_vol)
+        vol_row.addWidget(self.slider_music_vol, stretch=1)
         vol_row.addWidget(self.check_mute)
         audio_layout.addLayout(vol_row)
         
@@ -227,7 +235,7 @@ class BackgroundTab(QWidget):
         self.cfg.save()
         self.trigger_toast_notification()
 
-    def update_settings(self):
+    def update_settings(self, _=None): # O parâmetro '_' ignora o valor recebido do slider
         bg_config = {
             "path": self.cfg.data["bg_path"],
             "width": self.bg_window.width(),
@@ -374,12 +382,3 @@ class BackgroundTab(QWidget):
     def remove_bg(self):
         self.cfg.data["bg_path"] = ""
         self.update_settings()
-
-    def create_slider(self, min_v, max_v, key, default, layout, label):
-        layout.addWidget(QLabel(label))
-        s = QSlider(Qt.Horizontal)
-        s.setRange(min_v, max_v)
-        s.setValue(self.cfg.data.get(key, default))
-        s.valueChanged.connect(self.update_settings)
-        layout.addWidget(s)
-        return s

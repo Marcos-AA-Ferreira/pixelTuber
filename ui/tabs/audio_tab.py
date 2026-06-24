@@ -1,12 +1,15 @@
+# ui/tabs/audio_tab.py
 import sounddevice as sd
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, 
-                             QComboBox, QProgressBar, QCheckBox, QPushButton, \
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QComboBox, QProgressBar, QCheckBox, QPushButton, 
                              QGroupBox, QScrollArea, QFrame)
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPainterPath
-from ui.styles.theme import Theme
 
-# === MINI-VISUALIZADOR PARA O PAINEL DE CONTROLE ===
+from ui.styles.theme import Theme
+from ui.widgets.labeled_slider import LabeledSlider  # <-- IMPORTAÇÃO DO NOVO WIDGET
+
+# === MINI-VISUALIZADOR PARA O PAINEL DE CONTROLE (MANTIDO INTACTO) ===
 class PreviewVisualizerWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -94,22 +97,31 @@ class AudioTab(QWidget):
         scroll.setWidget(container)
         layout_principal.addWidget(scroll)
 
+    # ================================================================
+    # MONTAGEM DA INTERFACE (MUITO MAIS LIMPA!)
+    # ================================================================
+
     def _setup_input_section(self):
         group = QGroupBox("🎤 ENTRADA DE ÁUDIO")
         layout = QVBoxLayout(group)
 
         layout.addWidget(QLabel("Dispositivo de Entrada:"))
+
+        # Combobox de Microfone com Botão de Atualizar (Hotplug)
+        row_mic = QHBoxLayout()
         self.mic_combo = QComboBox()
-        self.refresh_mics()
-        
-        saved_mic = self.profile.get("audio", {}).get("device_index")
-        if saved_mic is not None:
-            index = self.mic_combo.findData(saved_mic)
-            if index != -1: 
-                self.mic_combo.setCurrentIndex(index)
-                
         self.mic_combo.currentIndexChanged.connect(self.update_mic)
-        layout.addWidget(self.mic_combo)
+
+        self.btn_refresh_mic = QPushButton("🔄")
+        self.btn_refresh_mic.setFixedSize(28, 28)
+        self.btn_refresh_mic.setToolTip("Atualizar lista de dispositivos USB/P2")
+        self.btn_refresh_mic.clicked.connect(self.refresh_mics)
+
+        row_mic.addWidget(self.mic_combo)
+        row_mic.addWidget(self.btn_refresh_mic)
+        layout.addLayout(row_mic)
+
+        self.refresh_mics()
 
         feedback_layout = QHBoxLayout()
         self.vol_bar = QProgressBar()
@@ -131,13 +143,11 @@ class AudioTab(QWidget):
         self.mute_shortcut = QShortcut(QKeySequence("M"), self)
         self.mute_shortcut.activated.connect(self.btn_mute.click)
 
-        self.gain_label = QLabel(f"Ganho de Entrada: {self.profile.get('audio', {}).get('gain', 1.0):.1f}x")
-        layout.addWidget(self.gain_label)
-        self.gain_sld = QSlider(Qt.Horizontal)
-        self.gain_sld.setRange(10, 1000) 
-        self.gain_sld.setValue(int(self.profile.get("audio", {}).get("gain", 1.0) * 100))
-        self.gain_sld.valueChanged.connect(self.update_gain)
-        layout.addWidget(self.gain_sld)
+        # 🌟 APLICANDO O NOSSO COMPONENTE DRY:
+        curr_gain = self.profile.get("audio", {}).get("gain", 1.0)
+        self.gain_slider = LabeledSlider("Ganho de Entrada:", min_val=0.1, max_val=10.0, default_val=curr_gain, divider=100, value_format="{v:.1f}x")
+        self.gain_slider.valueChanged.connect(self.update_gain)
+        layout.addWidget(self.gain_slider)
 
         self.main_layout.addWidget(group)
 
@@ -145,16 +155,13 @@ class AudioTab(QWidget):
         group = QGroupBox("⚙️ PROCESSAMENTO INTELIGENTE")
         layout = QVBoxLayout(group)
 
-        current_noise = self.profile.get("audio", {}).get("noise_gate", 0.02)
-        self.audio.noise_threshold = current_noise 
-        self.noise_label = QLabel(f"Filtro de Ruído (Gate): {current_noise:.2f}")
-        layout.addWidget(self.noise_label)
+        # 🌟 APLICANDO O NOSSO COMPONENTE DRY:
+        curr_noise = self.profile.get("audio", {}).get("noise_gate", 0.02)
+        self.audio.noise_threshold = curr_noise 
         
-        self.noise_sld = QSlider(Qt.Horizontal)
-        self.noise_sld.setRange(0, 50) 
-        self.noise_sld.setValue(int(current_noise * 100))
-        self.noise_sld.valueChanged.connect(self.update_noise_gate)
-        layout.addWidget(self.noise_sld)
+        self.noise_slider = LabeledSlider("Filtro de Ruído (Gate):", min_val=0.0, max_val=0.5, default_val=curr_noise, divider=100, value_format="{v:.2f}")
+        self.noise_slider.valueChanged.connect(self.update_noise_gate)
+        layout.addWidget(self.noise_slider)
 
         self.chk_bandpass = QCheckBox("Filtro Passa-Banda (Isolar Voz Humana)")
         self.chk_bandpass.setChecked(self.profile.get("audio", {}).get("use_bandpass", True))
@@ -172,12 +179,11 @@ class AudioTab(QWidget):
         self.smooth_check.toggled.connect(self.toggle_mode)
         layout.addWidget(self.smooth_check)
 
-        layout.addWidget(QLabel("Tempo de Retenção (ms):"))
-        self.hold_sld = QSlider(Qt.Horizontal)
-        self.hold_sld.setRange(0, 1000)
-        self.hold_sld.setValue(int(self.profile.get("audio", {}).get("hold_time", 0.2) * 1000))
-        self.hold_sld.valueChanged.connect(self.update_hold)
-        layout.addWidget(self.hold_sld)
+        # 🌟 APLICANDO O NOSSO COMPONENTE DRY:
+        curr_hold = self.profile.get("audio", {}).get("hold_time", 0.2)
+        self.hold_slider = LabeledSlider("Tempo de Retenção:", min_val=0.0, max_val=1.0, default_val=curr_hold, divider=1000, value_format="{v:.3f}s")
+        self.hold_slider.valueChanged.connect(self.update_hold)
+        layout.addWidget(self.hold_slider)
 
         self.main_layout.addWidget(group)
 
@@ -212,21 +218,20 @@ class AudioTab(QWidget):
         layout = QVBoxLayout(group)
         layout.addWidget(QLabel("<small>Define o volume necessário para cada estado do Avatar.</small>"))
 
+        th_cfg = self.profile.setdefault("audio", {}).setdefault("thresholds", {})
+        
+        # 🌟 APLICANDO O COMPONENTE NO LOOP! (Menos 10 linhas de código por loop)
         for key in ["low", "med", "high", "very_high"]:
-            h = QHBoxLayout()
-            h.addWidget(QLabel(f"{key.upper()}:"), 1)
-            sld = QSlider(Qt.Horizontal)
-            sld.setRange(0, 100)
-            
-            audio_cfg = self.profile.setdefault("audio", {})
-            th_cfg = audio_cfg.setdefault("thresholds", {})
-            
-            sld.setValue(int(th_cfg.get(key, 0.1) * 100))
+            val = th_cfg.get(key, 0.1)
+            sld = LabeledSlider(f"{key.upper()}:", min_val=0.0, max_val=1.0, default_val=val, divider=100, value_format="{v:.2f}")
             sld.valueChanged.connect(lambda v, k=key: self.update_threshold(k, v))
-            h.addWidget(sld, 4)
-            layout.addLayout(h)
+            layout.addWidget(sld)
 
         self.main_layout.addWidget(group)
+
+    # ================================================================
+    # LÓGICA DE EVENTOS (MAIS LIMPA E DIRETA)
+    # ================================================================
 
     def update_ui(self):
         if self.btn_mute.isChecked() != self.audio.muted:
@@ -254,11 +259,10 @@ class AudioTab(QWidget):
         self.audio.muted = checked
         self.btn_mute.setText("🔇 MUTADO (M)" if checked else "🎤 MUDO (M)")
 
-    def update_noise_gate(self, v):
-        val = v / 100.0
+    def update_noise_gate(self, val):
+        # Recebe o float direto do nosso LabeledSlider
         self.profile.setdefault("audio", {})["noise_gate"] = val
         self.audio.noise_threshold = val
-        self.noise_label.setText(f"Filtro de Ruído (Gate): {val:.2f}")
         self.cfg.save() 
 
     def toggle_bandpass(self, checked):
@@ -284,27 +288,66 @@ class AudioTab(QWidget):
         self.audio.change_device(device_id)
         self.cfg.save()
 
-    def update_gain(self, v):
-        gain_val = v / 100.0
+    def update_gain(self, gain_val):
         self.profile.setdefault("audio", {})["gain"] = gain_val
-        self.gain_label.setText(f"Ganho de Entrada: {gain_val:.1f}x")
         self.audio.gain = gain_val
         self.cfg.save()
 
-    def toggle_mode(self, v):
-        self.profile.setdefault("audio", {})["mode"] = "smooth" if v else "standard"
+    def toggle_mode(self, checked):
+        self.profile.setdefault("audio", {})["mode"] = "smooth" if checked else "standard"
         self.cfg.save()
 
-    def update_hold(self, v):
-        self.profile.setdefault("audio", {})["hold_time"] = v / 1000.0
+    def update_hold(self, val):
+        self.profile.setdefault("audio", {})["hold_time"] = val
         self.cfg.save()
 
-    def update_threshold(self, key, v):
-        self.profile.setdefault("audio", {}).setdefault("thresholds", {})[key] = v / 100.0
+    def update_threshold(self, key, val):
+        self.profile.setdefault("audio", {}).setdefault("thresholds", {})[key] = val
         self.cfg.save()
 
     def refresh_mics(self):
+        """Reinicia o motor de áudio temporariamente, detecta hardware novo e filtra lixo."""
+        was_running = self.audio.stream is not None
+        if was_running:
+            self.audio.stop()
+
+        sd._terminate()
+        sd._initialize()
+
+        self.mic_combo.blockSignals(True)
         self.mic_combo.clear()
+
+        banned_words = ["mapeador", "mapper", "primary", "principal"]
+        
         for i, d in enumerate(sd.query_devices()):
-            if d['max_input_channels'] > 0: 
-                self.mic_combo.addItem(d['name'], i)
+            if d['max_input_channels'] > 0:
+                name = d['name']
+                
+                if any(banned in name.lower() for banned in banned_words):
+                    continue
+                    
+                api = sd.query_hostapis(d['hostapi'])['name']
+                
+                if "MME" in api:
+                    display_name = name
+                else:
+                    display_name = f"{name} [{api}]"
+                    
+                self.mic_combo.addItem(display_name, i)
+
+        saved_mic = self.profile.get("audio", {}).get("device_index")
+        if saved_mic is not None:
+            idx = self.mic_combo.findData(saved_mic)
+            if idx != -1:
+                self.mic_combo.setCurrentIndex(idx)
+            elif self.mic_combo.count() > 0:
+                self.mic_combo.setCurrentIndex(0)
+                self.update_mic(0)
+        elif self.mic_combo.count() > 0:
+            self.mic_combo.setCurrentIndex(0)
+            self.update_mic(0)
+
+        self.mic_combo.blockSignals(False)
+
+        if was_running:
+            self.audio.start()
