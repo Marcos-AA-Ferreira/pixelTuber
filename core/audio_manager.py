@@ -1,23 +1,49 @@
 # core/audio_manager.py
+from PySide6.QtCore import QObject, Signal
 import sounddevice as sd
 import numpy as np
 from collections import deque
 
-class AudioManager:
-    def __init__(self, device_index=None, gain=1.0, sample_rate=None):
-        self.device_index = device_index
-        self.sample_rate = sample_rate 
+
+class AudioManager(QObject):
+
+    volumeChanged = Signal(float)
+    muteToggled = Signal(bool)
+    audioProcessed = Signal(float, list)
+
+    def __init__(self, config_manager, sample_rate=None):
+        super().__init__()
+        self.cfg = config_manager
+        self.sample_rate = sample_rate
         
-        self.gain = gain
-        self.noise_threshold = 0.02 
+        # O AudioManager busca seus próprios dados!
+        audio_cfg = self.cfg.data.get("audio", {})
+        self.device_index = audio_cfg.get("device_index")
+        self.gain = audio_cfg.get("gain", 1.0)
+        self.noise_threshold = audio_cfg.get("noise_gate", 0.02)
         self.muted = False
-        
-        self.use_bandpass = True  
+        self.use_bandpass = audio_cfg.get("use_bandpass", True)
+
         self.eq_bands = [0.0] * 8 
         
         self.volume = 0.0
         self.stream = None
         self.vol_buffer = deque(maxlen=3)
+
+    def set_noise_gate(self, val):
+        self.noise_threshold = val
+        self.cfg.data.setdefault("audio", {})["noise_gate"] = val
+        self.cfg.save()
+
+    def set_gain(self, val):
+        self.gain = val
+        self.cfg.data.setdefault("audio", {})["gain"] = val
+        self.cfg.save()
+        
+    def set_use_bandpass(self, state):
+        self.use_bandpass = state
+        self.cfg.data.setdefault("audio", {})["use_bandpass"] = state
+        self.cfg.save()
 
     def audio_callback(self, indata, frames, time, status):
         if status: return
@@ -73,6 +99,9 @@ class AudioManager:
         else:
             self.volume += (target_vol - self.volume) * 0.08 
 
+        self.volumeChanged.emit(self.volume)
+        self.audioProcessed.emit(self.volume, self.eq_bands)
+
     def start(self):
         if self.stream: self.stop()
         try:
@@ -95,9 +124,17 @@ class AudioManager:
             self.stream.close()
             self.stream = None
 
-    def get_volume(self): return self.volume
-    def toggle_mute(self): self.muted = not self.muted; return self.muted
-    def change_device(self, new_index): self.device_index = new_index; self.start()
+    def get_volume(self): 
+        return self.volume
+    
+    def toggle_mute(self): 
+        self.muted = not self.muted; 
+        self.muteToggled.emit(self.muted)
+        return self.muted
+    
+    def change_device(self, new_index): 
+        self.device_index = new_index; 
+        self.start()
 
     @staticmethod
     def get_input_devices():

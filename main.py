@@ -33,20 +33,17 @@ class PixelTuberApp:
         self.config = ConfigManager()
         
         # 2. Inicializar Motores de Áudio e Animação
-        audio_cfg = self.config.data.get("audio", {})
-        self.audio = AudioManager(
-            device_index=audio_cfg.get("device_index"),
-            gain=audio_cfg.get("gain", 1.0)
-        )
-        # REMOVA O self.anim_logic DAQUI!
+        self.audio = AudioManager(self.config)
+        
+        # Conecta o evento do áudio diretamente ao atualizador da interface! 🚀
+        self.audio.audioProcessed.connect(self.on_audio_processed)
 
         # 3. Inicializar Janelas
         self.bg_window = BackgroundWindow()
         self.render = RenderWindow(self.config)
         self.overlay = FullScreenOverlay()
 
-        # ---> ADICIONE AQUI! <---
-        # Agora o self.render já existe e pode ser passado para o manager
+
         self.anim_logic = AnimationManager(self.config, self.render)
         
         # 4. Inicializar Gerenciadores de Lógica
@@ -124,15 +121,23 @@ class PixelTuberApp:
         if not self.timer.isActive() or self.timer.interval() != interval:
             self.timer.start(interval)
 
+    def on_audio_processed(self, volume, eq_bands):
+        """Slot acionado via evento assim que o microfone processa o áudio."""
+        # 1. Atualiza a animação do Avatar com o volume atual
+        # (Verifique se no seu init o nome é 'self.anim_logic' ou 'self.animation')
+        if hasattr(self, 'anim_logic'):
+            self.anim_logic.update(volume)
+            
+        # 2. Atualiza o Visualizador de Áudio na tela principal
+        vis_config = self.config.data.get("visualizer", {})
+        if vis_config.get("enabled", True) and hasattr(self.render, 'visualizer'):
+            self.render.visualizer.bands = eq_bands
+            self.render.visualizer.update()
+
     def update_loop(self):
-        """Atualiza a lógica visual e gerencia interações de áudio a cada frame."""
+        """Atualiza a lógica visual e gerencia interações a cada frame."""
+        # Precisamos manter o volume apenas para o Auto-Ducking (por enquanto)
         vol = self.audio.get_volume()
-        
-        # --- MUDANÇA 1: CÓDIGO DESCOMENTADO ---
-        path = self.anim_logic.get_current_path(vol)
-        if path:
-            # Passamos também o estado (fala, mudo) para a UI acender a cor verde certa
-            self.render.set_animation(path, getattr(self.anim_logic, "last_state", None))
         
         # 1. Lógica do Auto-Ducking
         bg_muted = self.config.data.get("bg_music_muted", False)
@@ -148,26 +153,7 @@ class PixelTuberApp:
             else:
                 self.bg_window.audio.audio_output.setVolume(base_vol / 100.0)
             
-        # 2. Lógica Segura da Barra de Som (Visualizador)
-        if hasattr(self.render, 'visualizer'):
-            vis_config = self.config.data.get("visualizer", {})
-            is_vis_enabled = vis_config.get("enabled", False)
-            
-            if is_vis_enabled:
-                self.render.visualizer.show()
-                self.render.visualizer.style = vis_config.get("style", "Clássico")
-                
-                # Usa as bandas reais do microfone
-                if hasattr(self.audio, 'eq_bands') and self.audio.eq_bands:
-                    self.render.visualizer.bands = self.audio.eq_bands
-                else:
-                    self.render.visualizer.bands = [0.0] * 8
-                        
-                self.render.visualizer.update()
-            else:
-                self.render.visualizer.hide()
-
-        # 3. Atualização dos Acessórios
+        # 2. Atualização dos Acessórios (Antigo 3)
         self.render.accessories.update(self.render.main_label) 
         
         if self.panel.isVisible():

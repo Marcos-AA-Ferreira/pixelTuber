@@ -61,9 +61,6 @@ class ControlPanel(QWidget):
         main_layout.addWidget(self.tabs)
 
     def update_ui_feedback(self):
-        """Sincroniza os elementos visuais das abas com o estado do motor."""
-        if hasattr(self, 'audio_tab'):
-            self.audio_tab.update_ui()
         
         if hasattr(self, 'avatar_tab'):
             self.avatar_tab.update_ui()

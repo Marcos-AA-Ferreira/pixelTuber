@@ -18,6 +18,19 @@ class AnimationManager:
     # LÓGICA DE ANIMAÇÃO (LIP-SYNC)
     # ================================================================
 
+    def update(self, vol):
+        """
+        Recebe o volume atual, decide qual é o sprite/GIF correto (lip-sync)
+        e atualiza diretamente a janela de renderização.
+        """
+        path = self.get_current_path(vol)
+        
+        # Verifica dinamicamente qual o método que a sua RenderWindow usa para mudar o avatar
+        if hasattr(self.render, 'load_image'):
+            self.render.load_image(path)
+        elif hasattr(self.render, 'mudar_avatar'):
+            self.render.mudar_avatar(path)
+
     def get_current_path(self, vol):
         """
         Analisa o volume atual e retorna o caminho do GIF correspondente.

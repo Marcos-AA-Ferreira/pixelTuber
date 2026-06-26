@@ -72,11 +72,11 @@ class PreviewVisualizerWidget(QWidget):
 
 # === ABA PRINCIPAL ===
 class AudioTab(QWidget):
-    def __init__(self, config_manager, audio):
+    def __init__(self, config_manager, audio_manager):
         super().__init__()
         self.cfg = config_manager
-        self.audio = audio
-        self.profile = config_manager.data
+        self.profile = self.cfg.data       
+        self.audio = audio_manager
         
         self.setStyleSheet(Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX + 
                            Theme.BUTTON_BASE + Theme.BUTTON_MUTE_ACTIVE)
@@ -96,6 +96,24 @@ class AudioTab(QWidget):
 
         scroll.setWidget(container)
         layout_principal.addWidget(scroll)
+
+        # 1. SINTONIZANDO NOS SINAIS
+        self.audio.volumeChanged.connect(self.atualizar_barra_de_volume)
+        self.audio.muteToggled.connect(self.atualizar_botao_mudo)
+
+    # 2. FUNÇÕES "SLOT" QUE REAGEM AOS SINAIS
+    def atualizar_barra_de_volume(self, volume_atual):
+        # Converte o volume (0.0 a 1.0) para porcentagem (0 a 100)
+        porcentagem = int(volume_atual * 100)
+        # Usando o nome correto da sua barra de progresso:
+        self.vol_bar.setValue(porcentagem)
+
+    def atualizar_botao_mudo(self, esta_mutado):
+        # Usando o nome correto do seu botão:
+        self.btn_mute.blockSignals(True) # Impede loop infinito de sinais
+        self.btn_mute.setChecked(esta_mutado)
+        self.btn_mute.setText("🔇 MUTADO (M)" if esta_mutado else "🎤 MUDO (M)")
+        self.btn_mute.blockSignals(False)
 
     # ================================================================
     # MONTAGEM DA INTERFACE (MUITO MAIS LIMPA!)
@@ -260,15 +278,10 @@ class AudioTab(QWidget):
         self.btn_mute.setText("🔇 MUTADO (M)" if checked else "🎤 MUDO (M)")
 
     def update_noise_gate(self, val):
-        # Recebe o float direto do nosso LabeledSlider
-        self.profile.setdefault("audio", {})["noise_gate"] = val
-        self.audio.noise_threshold = val
-        self.cfg.save() 
+        self.audio.set_noise_gate(val)
 
     def toggle_bandpass(self, checked):
-        self.audio.use_bandpass = checked
-        self.profile.setdefault("audio", {})["use_bandpass"] = checked
-        self.cfg.save()
+        self.audio.set_use_bandpass(checked)
 
     def toggle_ducking(self, checked):
         self.profile.setdefault("audio", {})["auto_ducking"] = checked
@@ -288,10 +301,8 @@ class AudioTab(QWidget):
         self.audio.change_device(device_id)
         self.cfg.save()
 
-    def update_gain(self, gain_val):
-        self.profile.setdefault("audio", {})["gain"] = gain_val
-        self.audio.gain = gain_val
-        self.cfg.save()
+    def update_gain(self, val):
+        self.audio.set_gain(val)
 
     def toggle_mode(self, checked):
         self.profile.setdefault("audio", {})["mode"] = "smooth" if checked else "standard"
