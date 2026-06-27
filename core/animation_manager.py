@@ -5,14 +5,15 @@ import uuid
 from core.utils import validate_path
 
 class AnimationManager:
-    # Hierarquia linear de intensidade sonora
+    # Hierarquia linear de intensidade sonora para lógica de comparação e decaimento
     STATES_ORDER = ["mute", "low", "med", "high", "very_high"]
 
     def __init__(self, config_manager, render_window):
         self.cfg = config_manager
         self.render = render_window
         self.last_state = "mute"
-        self.last_change_time = 0
+        self.last_change_time = 0.0
+        self.current_rendered_path = ""  # Impede o reset contínuo do frame zero do GIF
 
     # ================================================================
     # LÓGICA DE ANIMAÇÃO (LIP-SYNC)
@@ -20,35 +21,38 @@ class AnimationManager:
 
     def update(self, vol):
         """
-        Recebe o volume atual, decide qual é o sprite/GIF correto (lip-sync)
-        e atualiza diretamente a janela de renderização.
+        Recebe o volume atual, decide qual é o sprite/GIF correto (lip-sync),
+        aplica o decaimento e atualiza diretamente a janela de renderização.
         """
         path = self.get_current_path(vol)
         
-        # Verifica dinamicamente qual o método que a sua RenderWindow usa para mudar o avatar
-        if hasattr(self.render, 'load_image'):
-            self.render.load_image(path)
-        elif hasattr(self.render, 'mudar_avatar'):
-            self.render.mudar_avatar(path)
+        # Só atualiza a janela se o caminho mudou, evitando reiniciar o GIF do frame zero a cada frame
+        if path and path != self.current_rendered_path:
+            if hasattr(self.render, 'set_animation'):
+                self.render.set_animation(path)
+                self.current_rendered_path = path
+            elif hasattr(self.render, 'load_image'):
+                self.render.load_image(path)
+                self.current_rendered_path = path
 
     def get_current_path(self, vol):
         """
-        Analisa o volume atual e retorna o caminho do GIF correspondente.
-        Inclui decaimento suave para um fechamento de boca orgânico.
+        Analisa o volume e devolve a animação correspondente com 
+        decaimento suave para um fechamento de boca orgânico.
         """
         data = self.cfg.data
         audio_cfg = data.get("audio", {})
         th = audio_cfg.get("thresholds", {"low": 0.05, "med": 0.2, "high": 0.5, "very_high": 0.8})
 
-        mode = audio_cfg.get("mode", "smooth")
+        mode = audio_cfg.get("mode", "smooth") 
         hold_time = audio_cfg.get("hold_time", 0.1)
 
         # 1. Determinação do Estado Alvo (Raw)
         target_state = "mute"
-        if vol >= th.get("very_high", 0.8): target_state = "very_high"
-        elif vol >= th.get("high", 0.5):    target_state = "high"
-        elif vol >= th.get("med", 0.2):     target_state = "med"
-        elif vol >= th.get("low", 0.05):    target_state = "low"
+        if vol >= th.get("very_high", 0.8):   target_state = "very_high"
+        elif vol >= th.get("high", 0.5):     target_state = "high"
+        elif vol >= th.get("med", 0.2):      target_state = "med"
+        elif vol >= th.get("low", 0.05):     target_state = "low"
 
         # 2. Algoritmo Smooth (Decaimento Escalonado)
         if mode == "standard":
@@ -57,27 +61,31 @@ class AnimationManager:
             idx_last = self.STATES_ORDER.index(self.last_state)
             idx_target = self.STATES_ORDER.index(target_state)
 
+            current_time = time.time()
             if idx_target > idx_last:
                 # Voz aumentou: Abre a boca na hora (Ataque imediato)
                 self.last_state = target_state
-                self.last_change_time = time.time()
+                self.last_change_time = current_time
             elif idx_target < idx_last:
-                # Voz diminuiu: Desce apenas um nível por ciclo (Relaxamento)
-                if (time.time() - self.last_change_time) > hold_time:
+                # Voz diminuiu: Desce apenas um nível por ciclo de retenção (Relaxamento)
+                if (current_time - self.last_change_time) > hold_time:
                     self.last_state = self.STATES_ORDER[idx_last - 1]
-                    self.last_change_time = time.time()
+                    self.last_change_time = current_time
 
-        # 3. Busca do Ficheiro no Config
+        # 3. Resgate Seguro com Cascata de Recuo (Fallback Dinâmico)
         active_set_name = data.get("animations", {}).get("main_set", "default")
         anim_set = data.get("animations", {}).get("sets", {}).get(active_set_name, {})
 
-        path = anim_set.get(self.last_state, "")
+        check_idx = self.STATES_ORDER.index(self.last_state)
+        while check_idx >= 0:
+            state_to_try = self.STATES_ORDER[check_idx]
+            path = anim_set.get(state_to_try, "")
+            if validate_path(path):
+                return path
+            check_idx -= 1
 
-        # Fallback de segurança para estados não configurados
-        if not validate_path(path):
-            path = anim_set.get("mute", "")
-
-        return path
+        # Proteção máxima para não deixar a tela vazia
+        return anim_set.get("mute", "")
 
     # ================================================================
     # GERENCIAMENTO DE DADOS (DESACOPLADOS DA UI)
@@ -87,9 +95,11 @@ class AnimationManager:
         """Define o set selecionado como ativo e atualiza a janela de renderização."""
         self.cfg.data["animations"]["main_set"] = set_name
         self.cfg.save()
-        
+
         mute_path = self.cfg.data["animations"].get("sets", {}).get(set_name, {}).get("mute", "")
-        self.render.set_animation(mute_path)
+        if hasattr(self.render, 'set_animation'):
+            self.render.set_animation(mute_path)
+            self.current_rendered_path = mute_path
 
     def create_new_set(self, name):
         """Cria um novo espaço em branco para um avatar."""
@@ -123,7 +133,7 @@ class AnimationManager:
 
         self.cfg.data["animations"]["sets"][set_name] = new_set
         self.cfg.save()
-        return set_name # Retorna o nome final salvo
+        return set_name
 
     def delete_set(self, set_name):
         """Deleta uma skin, impedindo de apagar se for a única."""
@@ -133,7 +143,6 @@ class AnimationManager:
             
         del sets[set_name]
         
-        # Se a skin apagada era a que estava em uso, volta pra default
         if self.cfg.data["animations"].get("main_set") == set_name:
             self.set_active_set("default")
         else:
@@ -147,4 +156,6 @@ class AnimationManager:
         
         if set_name == self.cfg.data["animations"].get("main_set"):
             if getattr(self.render, "current_state", None) == state:
-                self.render.set_animation(path)
+                if hasattr(self.render, 'set_animation'):
+                    self.render.set_animation(path)
+                    self.current_rendered_path = path

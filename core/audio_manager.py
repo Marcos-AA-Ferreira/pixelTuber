@@ -46,10 +46,15 @@ class AudioManager(QObject):
         self.cfg.save()
 
     def audio_callback(self, indata, frames, time, status):
-        if status: return
+        """Callback do sounddevice processando blocos de áudio."""
+        if status:
+            print(status)
+
         if self.muted:
             self.volume = 0.0
             self.eq_bands = [0.0] * 8
+            self.volumeChanged.emit(0.0)
+            self.audioProcessed.emit(0.0, self.eq_bands)
             return
 
         signal = indata[:, 0]
@@ -127,14 +132,53 @@ class AudioManager(QObject):
     def get_volume(self): 
         return self.volume
     
+    def set_muted(self, state):
+        """Define o estado de mudo explicitamente e notifica a UI de forma reativa."""
+        self.muted = state
+        self.muteToggled.emit(self.muted)
+
     def toggle_mute(self): 
-        self.muted = not self.muted; 
+        """Inverte o estado de mudo e dispara o sinal reativo correspondente."""
+        self.muted = not self.muted
         self.muteToggled.emit(self.muted)
         return self.muted
     
     def change_device(self, new_index): 
-        self.device_index = new_index; 
+        self.device_index = new_index
+        # O próprio gestor agora grava o novo dispositivo
+        self.cfg.data.setdefault("audio", {})["device_index"] = new_index
+        self.cfg.save()
         self.start()
+
+    def set_auto_ducking(self, state):
+        """Define e grava o estado do Auto-Ducking."""
+        self.cfg.data.setdefault("audio", {})["auto_ducking"] = state
+        self.cfg.save()
+
+    def set_visualizer_enabled(self, state):
+        """Define e grava se o visualizador está ativo."""
+        self.cfg.data.setdefault("visualizer", {})["enabled"] = state
+        self.cfg.save()
+
+    def set_visualizer_style(self, style):
+        """Define e grava o estilo visual do visualizador."""
+        self.cfg.data.setdefault("visualizer", {})["style"] = style
+        self.cfg.save()
+
+    def set_mode(self, mode):
+        """Define e grava o modo de voz (smooth ou standard)."""
+        self.cfg.data.setdefault("audio", {})["mode"] = mode
+        self.cfg.save()
+
+    def set_hold_time(self, val):
+        """Define e grava o tempo de retenção do áudio."""
+        self.cfg.data.setdefault("audio", {})["hold_time"] = val
+        self.cfg.save()
+
+    def set_threshold(self, key, val):
+        """Define e grava os limites (thresholds) de ativação por chave (low, med, etc)."""
+        self.cfg.data.setdefault("audio", {}).setdefault("thresholds", {})[key] = val
+        self.cfg.save()
 
     @staticmethod
     def get_input_devices():

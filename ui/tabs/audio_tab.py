@@ -100,6 +100,11 @@ class AudioTab(QWidget):
         # 1. SINTONIZANDO NOS SINAIS
         self.audio.volumeChanged.connect(self.atualizar_barra_de_volume)
         self.audio.muteToggled.connect(self.atualizar_botao_mudo)
+        self.audio.muteToggled.connect(self.update_mute_ui)
+        self.audio.audioProcessed.connect(self.update_audio_ui)
+        
+        # Certifique-se de que o clique do botão de mudo apenas chame o Core
+        self.btn_mute.clicked.connect(self.on_mute_clicked)
 
     # 2. FUNÇÕES "SLOT" QUE REAGEM AOS SINAIS
     def atualizar_barra_de_volume(self, volume_atual):
@@ -152,7 +157,7 @@ class AudioTab(QWidget):
         self.btn_mute.setCheckable(True)
         self.btn_mute.setChecked(self.audio.muted)
         self.btn_mute.setFixedWidth(110)
-        self.btn_mute.clicked.connect(self.toggle_mute_ui)
+        self.btn_mute.clicked.connect(self.on_mute_clicked)
         
         feedback_layout.addWidget(self.vol_bar)
         feedback_layout.addWidget(self.btn_mute)
@@ -160,6 +165,8 @@ class AudioTab(QWidget):
 
         self.mute_shortcut = QShortcut(QKeySequence("M"), self)
         self.mute_shortcut.activated.connect(self.btn_mute.click)
+        self.btn_mute.clicked.connect(self.on_mute_clicked)
+        self.audio.muteToggled.connect(self.update_mute_ui)
 
         # 🌟 APLICANDO O NOSSO COMPONENTE DRY:
         curr_gain = self.profile.get("audio", {}).get("gain", 1.0)
@@ -251,32 +258,38 @@ class AudioTab(QWidget):
     # LÓGICA DE EVENTOS (MAIS LIMPA E DIRETA)
     # ================================================================
 
-    def update_ui(self):
-        if self.btn_mute.isChecked() != self.audio.muted:
-            self.btn_mute.blockSignals(True)
-            self.btn_mute.setChecked(self.audio.muted)
-            self.btn_mute.setText("🔇 MUTADO (M)" if self.audio.muted else "🎤 MUDO (M)")
-            self.btn_mute.blockSignals(False)
+    def on_mute_clicked(self):
+        """Disparado ao clicar no botão. Altera o estado no Core."""
+        self.audio.toggle_mute()
 
+    def update_mute_ui(self, is_muted):
+        """Reage à alteração real do Core e atualiza o visual da janela."""
+        if is_muted:
+            self.btn_mute.setText("🔇 DESMUTAR")
+            # Se usares estilos CSS do teu Theme:
+            if hasattr(Theme, 'BUTTON_MUTE_ACTIVE'):
+                self.btn_mute.setStyleSheet(Theme.BUTTON_MUTE_ACTIVE)
+        else:
+            self.btn_mute.setText("🎙️ MUTAR")
+            if hasattr(Theme, 'BUTTON_BASE'):
+                self.btn_mute.setStyleSheet(Theme.BUTTON_BASE)
+
+    def update_audio_ui(self, volume, eq_bands):
+        """Slot acionado AUTOMATICAMENTE a cada bloco de som processado pelo hardware."""
+        # Se estiver mutado, não gaste processamento atualizando gráficos de som
         if self.audio.muted:
-            self.vol_bar.setValue(0)
-            if hasattr(self, 'preview_vis'):
-                self.preview_vis.bands = [0.0] * 8
-                self.preview_vis.update()
             return
             
-        vol = self.audio.get_volume()
-        self.vol_bar.setValue(min(int(vol * 100), 100))
+        # Sincroniza a barra de volume com o valor exato emitido pelo sinal do microfone
+        self.vol_bar.setValue(min(int(volume * 100), 100))
         
-        if hasattr(self, 'preview_vis') and hasattr(self.audio, 'eq_bands'):
+        # Atualiza o mini-visualizador integrado do painel
+        if hasattr(self, 'preview_vis'):
             self.preview_vis.style = self.combo_style.currentText()
-            self.preview_vis.bands = list(self.audio.eq_bands) 
+            self.preview_vis.bands = list(eq_bands)
             self.preview_vis.update()
 
-    def toggle_mute_ui(self, checked):
-        self.audio.muted = checked
-        self.btn_mute.setText("🔇 MUTADO (M)" if checked else "🎤 MUDO (M)")
-
+    # --- Os demais métodos permanecem iguais (apenas repassando dados ao Core) ---
     def update_noise_gate(self, val):
         self.audio.set_noise_gate(val)
 
@@ -284,37 +297,30 @@ class AudioTab(QWidget):
         self.audio.set_use_bandpass(checked)
 
     def toggle_ducking(self, checked):
-        self.profile.setdefault("audio", {})["auto_ducking"] = checked
-        self.cfg.save()
+        self.audio.set_auto_ducking(checked)
 
     def toggle_visualizer(self, checked):
-        self.profile.setdefault("visualizer", {})["enabled"] = checked
-        self.cfg.save()
+        self.audio.set_visualizer_enabled(checked)
 
     def change_vis_style(self, text):
-        self.profile.setdefault("visualizer", {})["style"] = text
-        self.cfg.save()
+        self.audio.set_visualizer_style(text)
 
     def update_mic(self, index):
         device_id = self.mic_combo.itemData(index)
-        self.profile.setdefault("audio", {})["device_index"] = device_id
         self.audio.change_device(device_id)
-        self.cfg.save()
 
     def update_gain(self, val):
         self.audio.set_gain(val)
 
     def toggle_mode(self, checked):
-        self.profile.setdefault("audio", {})["mode"] = "smooth" if checked else "standard"
-        self.cfg.save()
+        mode = "smooth" if checked else "standard"
+        self.audio.set_mode(mode)
 
     def update_hold(self, val):
-        self.profile.setdefault("audio", {})["hold_time"] = val
-        self.cfg.save()
+        self.audio.set_hold_time(val)
 
     def update_threshold(self, key, val):
-        self.profile.setdefault("audio", {}).setdefault("thresholds", {})[key] = val
-        self.cfg.save()
+        self.audio.set_threshold(key, val)
 
     def refresh_mics(self):
         """Reinicia o motor de áudio temporariamente, detecta hardware novo e filtra lixo."""
@@ -333,17 +339,10 @@ class AudioTab(QWidget):
         for i, d in enumerate(sd.query_devices()):
             if d['max_input_channels'] > 0:
                 name = d['name']
-                
                 if any(banned in name.lower() for banned in banned_words):
                     continue
-                    
                 api = sd.query_hostapis(d['hostapi'])['name']
-                
-                if "MME" in api:
-                    display_name = name
-                else:
-                    display_name = f"{name} [{api}]"
-                    
+                display_name = name if "MME" in api else f"{name} [{api}]"
                 self.mic_combo.addItem(display_name, i)
 
         saved_mic = self.profile.get("audio", {}).get("device_index")

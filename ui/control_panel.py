@@ -33,6 +33,7 @@ class ControlPanel(QWidget):
         self.render = render
         self.effects = effects
         self.hotkeys = hotkeys
+        self.anim_logic = anim_logic
         self.overlay = overlay
         self.bg_window = bg_window
         
@@ -44,7 +45,7 @@ class ControlPanel(QWidget):
         self.tabs = QTabWidget()
         
         # Instanciando abas
-        self.avatar_tab = AvatarTab(self.config_manager, self.render, self.audio, self.hotkeys, anim_logic)
+        self.avatar_tab = AvatarTab( config_manager=self.config_manager, render=self.render, audio=self.audio, hotkeys=self.hotkeys, anim_manager=self.anim_logic)
         self.settings_tab = SettingsTab(self.config_manager, self.render, self.hotkeys)
         self.audio_tab = AudioTab(self.config_manager, self.audio)
         self.effects_tab = EffectsTab(self.config_manager, self.effects, self.hotkeys)

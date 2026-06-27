@@ -4,7 +4,7 @@ import os
 import random 
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PySide6.QtGui import QIcon, QAction
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt
 
 # --- Importação dos Gerenciadores do Core ---
 from core.config_manager import ConfigManager
@@ -36,7 +36,8 @@ class PixelTuberApp:
         self.audio = AudioManager(self.config)
         
         # Conecta o evento do áudio diretamente ao atualizador da interface! 🚀
-        self.audio.audioProcessed.connect(self.on_audio_processed)
+        self.audio.audioProcessed.connect(self.on_audio_processed, Qt.QueuedConnection)
+        self.audio.start()
 
         # 3. Inicializar Janelas
         self.bg_window = BackgroundWindow()
@@ -53,12 +54,12 @@ class PixelTuberApp:
         
         # 5. Interface de Controle
         self.panel = ControlPanel(
-            self.config, 
-            self.audio, 
-            self.render, 
-            self.effects,
-            self.anim_logic,
-            self.hotkeys,
+            config_manager=self.config,  # <- Corrigido de self.config_manager para self.config
+            audio=self.audio, 
+            render=self.render, 
+            effects=self.effects,
+            hotkeys=self.hotkeys,        # <- Mapeado explicitamente para o parâmetro correto
+            anim_logic=self.anim_logic,  # <- Mapeado explicitamente para o parâmetro correto
             overlay=self.overlay,
             bg_window=self.bg_window
         )
@@ -122,43 +123,43 @@ class PixelTuberApp:
             self.timer.start(interval)
 
     def on_audio_processed(self, volume, eq_bands):
-        """Slot acionado via evento assim que o microfone processa o áudio."""
+        """Slot acionado assim que o microfone processa o áudio."""
         # 1. Atualiza a animação do Avatar com o volume atual
-        # (Verifique se no seu init o nome é 'self.anim_logic' ou 'self.animation')
-        if hasattr(self, 'anim_logic'):
+        if hasattr(self, 'anim_logic') and self.anim_logic:
             self.anim_logic.update(volume)
             
-        # 2. Atualiza o Visualizador de Áudio na tela principal
+        # 2. Atualiza o Visualizador de Áudio na tela de renderização
         vis_config = self.config.data.get("visualizer", {})
         if vis_config.get("enabled", True) and hasattr(self.render, 'visualizer'):
             self.render.visualizer.bands = eq_bands
             self.render.visualizer.update()
 
-    def update_loop(self):
-        """Atualiza a lógica visual e gerencia interações a cada frame."""
-        # Precisamos manter o volume apenas para o Auto-Ducking (por enquanto)
-        vol = self.audio.get_volume()
-        
-        # 1. Lógica do Auto-Ducking
+        # 3. Lógica do Auto-Ducking reativa
         bg_muted = self.config.data.get("bg_music_muted", False)
         base_vol = self.config.data.get("bg_music_vol", 50)
         ducking_enabled = self.config.data.get("audio", {}).get("auto_ducking", True)
         
         if hasattr(self.bg_window, 'audio') and not bg_muted:
             if ducking_enabled:
-                target_duck = 0.3 if vol > self.audio.noise_threshold else 1.0
+                target_duck = 0.3 if volume > self.audio.noise_threshold else 1.0
+                if not hasattr(self, 'current_duck_multiplier'):
+                    self.current_duck_multiplier = 1.0
                 self.current_duck_multiplier += (target_duck - self.current_duck_multiplier) * 0.1
                 final_vol = base_vol * self.current_duck_multiplier
                 self.bg_window.audio.audio_output.setVolume(final_vol / 100.0)
             else:
                 self.bg_window.audio.audio_output.setVolume(base_vol / 100.0)
-            
-        # 2. Atualização dos Acessórios (Antigo 3)
+
+    def update_loop(self):
+        """Atualiza a lógica visual e gerencia interações a cada frame."""
+        # 1. Atualização dos Acessórios
         self.render.accessories.update(self.render.main_label) 
         
+        # 2. Atualização de feedback visual do painel se estiver aberto
         if self.panel.isVisible():
             self.panel.update_ui_feedback()
             
+        # 3. Controlo de FPS
         self.frame_count += 1
         if self.frame_count >= 60:
             self.apply_fps_limit()
