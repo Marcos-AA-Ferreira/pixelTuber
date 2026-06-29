@@ -10,7 +10,7 @@ from ui.tabs.background_tab import BackgroundTab
 from ui.tabs.help_tab import HelpTab
 
 class ControlPanel(QWidget):
-    def __init__(self, config_manager, audio, render, effects, hotkeys, anim_logic, overlay, bg_window):
+    def __init__(self, config_manager, audio, render, effects, hotkeys, anim_logic, overlay, bg_window, bg_manager):
         # Inicializado sem parent para ser uma janela totalmente independente
         super().__init__(None)
         

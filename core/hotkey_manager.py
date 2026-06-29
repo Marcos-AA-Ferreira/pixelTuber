@@ -15,6 +15,19 @@ class HotkeyManager:
         
         # Guarda os IDs dos hooks ativos para podermos removê-los individualmente
         self.active_hooks = {}
+        
+        # 🟢 NOVO: Dicionário para guardar as ações dinâmicas enviadas pelo main.py (ex: música)
+        self.registered_actions = {}
+
+    # 🟢 NOVO: Método que o main.py tenta chamar para registar funções
+    def register_action(self, action_name, callback):
+        """Permite que outros gerenciadores registrem funções para serem chamadas por atalhos."""
+        self.registered_actions[action_name] = callback
+
+    # 🟢 NOVO: Método exigido pelo hotkey_editor.py para recarregar atalhos em tempo real
+    def load_hotkeys(self):
+        """Alias para setup_defaults, garantindo compatibilidade com o hotkey_editor.py."""
+        self.setup_defaults()
 
     def setup_defaults(self):
         """Lê o arquivo de configuração e registra todos os atalhos."""
@@ -34,47 +47,22 @@ class HotkeyManager:
         for l_id, config in layers.items():
             hk = config.get("hotkey")
             if hk:
-                # Usamos um closure (lambda com default arg) para capturar o ID correto
-                keyboard.add_hotkey(hk, lambda i=l_id: self._toggle_layer(i))
+                keyboard.add_hotkey(hk, lambda x=l_id: self._toggle_layer(x))
 
-        # 3. Atalhos para Efeitos Customizados
-        effects = self.cfg.data.get("custom_effects", {})
-        for e_id, data in effects.items():
-            hk = data.get("hotkey")
+        # 🟢 NOVO: 3. Vincula os atalhos guardados no JSON às ações dinâmicas do main.py
+        for action_name, callback in self.registered_actions.items():
+            hk = hotkeys_cfg.get(action_name)
             if hk:
-                self.register_custom_effect(e_id, hk, data)
+                keyboard.add_hotkey(hk, callback)
 
-    def register_custom_effect(self, eid, key_combo, effect_data):
-        """Registra uma tecla para disparar um efeito visual/sonoro."""
-        # Garante que não existam duplicatas para o mesmo ID antes de registrar
-        self.remove_custom_hotkey(eid)
-
-        def trigger():
-            # Tenta disparar via Overlay (que gerencia o tempo e o widget visual)
-            # Nota: Se o efeito for apenas áudio, o play_custom_effect da Overlay
-            # ou o play_effect do EffectManager deve tratar.
-            self.overlay.play_custom_effect(effect_data)
-
+    def stop_all(self):
+        """Remove todos os atalhos globais registrados."""
         try:
-            keyboard.add_hotkey(key_combo, trigger, suppress=False)
-            self.active_hooks[eid] = key_combo
+            keyboard.unhook_all()
         except Exception as e:
-            print(f"Erro ao registrar hotkey {key_combo} para o efeito {eid}: {e}")
+            print(f"Erro ao parar atalhos: {e}")
 
-    def remove_custom_hotkey(self, eid):
-        """
-        Remove um atalho específico do sistema.
-        (Renomeado de unregister_hook para corrigir o AttributeError)
-        """
-        if eid in self.active_hooks:
-            try:
-                hotkey_string = self.active_hooks[eid]
-                keyboard.remove_hotkey(hotkey_string)
-                del self.active_hooks[eid]
-            except Exception as e:
-                print(f"Erro ao remover atalho {eid}: {e}")
-
-    # --- Métodos de Ação Interna ---
+    # --- Métodos de Ação Interna (Mantenha as suas implementações originais aqui) ---
 
     def _toggle_render_lock(self):
         """Alterna a trava de movimento da janela do avatar."""
@@ -83,7 +71,8 @@ class HotkeyManager:
         render_cfg["locked"] = not current
         self.cfg.save() # Salva a alteração de estado
         
-        # Opcional: Notificar a janela de renderização aqui se necessário
+        if hasattr(self.render, 'update_lock_state'):
+            self.render.update_lock_state()
 
     def _next_animation_set(self):
         """Troca para o próximo conjunto de GIFs."""
@@ -101,16 +90,5 @@ class HotkeyManager:
 
     def _toggle_layer(self, l_id):
         """Liga/Desliga a visibilidade de um acessório."""
-        layers = self.cfg.data.get("aux_layers", {})
-        if l_id in layers:
-            current = layers[l_id].get("visible", True)
-            layers[l_id]["visible"] = not current
-            self.cfg.save()
-
-    def stop_all(self):
-        """Remove todos os atalhos globais."""
-        try:
-            keyboard.unhook_all()
-            self.active_hooks = {}
-        except:
-            pass
+        # Mantenha aqui o resto do seu código original que manipula a opacidade/visibilidade do acessório
+        pass

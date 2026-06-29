@@ -10,6 +10,7 @@ from PySide6.QtCore import QTimer, Qt
 from core.config_manager import ConfigManager
 from core.audio_manager import AudioManager
 from core.animation_manager import AnimationManager
+from core.background_manager import BackgroundManager
 from core.hotkey_manager import HotkeyManager
 from core.effect_manager import EffectManager
 from core.utils import validate_path
@@ -41,6 +42,7 @@ class PixelTuberApp:
 
         # 3. Inicializar Janelas
         self.bg_window = BackgroundWindow()
+        self.bg_manager = BackgroundManager(self.config, self.bg_window)
         self.render = RenderWindow(self.config)
         self.overlay = FullScreenOverlay()
 
@@ -51,17 +53,21 @@ class PixelTuberApp:
         self.effects = EffectManager(self.overlay)
         self.hotkeys = HotkeyManager(self.config, self.render, self.overlay)
         self.hotkeys.setup_defaults()
+
+        self.hotkeys.register_action("next_music", self.bg_manager.play_next)
+        self.hotkeys.register_action("prev_music", self.bg_manager.play_prev)
         
         # 5. Interface de Controle
         self.panel = ControlPanel(
-            config_manager=self.config,  # <- Corrigido de self.config_manager para self.config
+            config_manager=self.config,
             audio=self.audio, 
             render=self.render, 
             effects=self.effects,
-            hotkeys=self.hotkeys,        # <- Mapeado explicitamente para o parâmetro correto
-            anim_logic=self.anim_logic,  # <- Mapeado explicitamente para o parâmetro correto
+            hotkeys=self.hotkeys,
+            anim_logic=self.anim_logic,
             overlay=self.overlay,
-            bg_window=self.bg_window
+            bg_window=self.bg_window,
+            bg_manager=self.bg_manager
         )
         
         # 6. Bandeja do Sistema
