@@ -125,6 +125,10 @@ class BackgroundManager(QObject):
             self.musicChanged.emit(path)
             self._apply_background_to_window()
 
+    def get_current_music_path(self):
+        """Retorna o caminho da música atual guardado nas configurações."""
+        return self.cfg.data.get("bg_music_path", "")
+
     def play_next(self):
         if not self.playlist: return
         self.current_index = (self.current_index + 1) % len(self.playlist)

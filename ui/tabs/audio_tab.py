@@ -8,14 +8,11 @@ from PySide6.QtGui import QColor
 
 from ui.styles.theme import Theme
 from ui.widgets.labeled_slider import LabeledSlider
-
-# CORRIGIDO: Import dinâmico apontando para o seu novo caminho customizado
 from ui.tabs.audio_tab_component.audio_visualizer import AudioVisualizerWidget
 
 class AudioTab(QWidget):
-    def __init__(self, config_manager, audio_manager):
+    def __init__(self, audio_manager):
         super().__init__()
-        self.profile = config_manager
         self.audio = audio_manager
         self.init_ui()
         
@@ -101,7 +98,7 @@ class AudioTab(QWidget):
         self.combo_style = QComboBox()
         self.combo_style.addItems(["Clássico", "Onda Contínua", "Barras Digitais"])
         
-        saved_style = self.profile.data.get("visualizer", {}).get("style", "Clássico")
+        saved_style = self.audio.cfg.data.get("visualizer", {}).get("style", "Clássico")
         self.combo_style.setCurrentText(saved_style)
         self.visualizer.set_visualizer_style(saved_style)
         
@@ -116,7 +113,7 @@ class AudioTab(QWidget):
         group = QGroupBox("Filtros e Processamento de Voz")
         layout = QVBoxLayout(group)
         
-        audio_cfg = self.profile.data.get("audio", {})
+        audio_cfg = self.audio.cfg.data.get("audio", {})
         
         # --- ADICIONADO: Slider de Ganho de Áudio ---
         # Multiplicador de 0.0 a 5.0 (exibido como 0% a 500%)
@@ -154,7 +151,7 @@ class AudioTab(QWidget):
         group = QGroupBox("Limites de Ativação por Volume (Expressão)")
         layout = QVBoxLayout(group)
         
-        thresh_cfg = self.profile.data.get("audio", {}).get("thresholds", {"low": 10, "mid": 35, "high": 65, "vhigh": 85})
+        thresh_cfg = self.audio.cfg.data.get("audio", {}).get("thresholds", {"low": 10, "mid": 35, "high": 65, "vhigh": 85})
         
         self.slider_low = LabeledSlider("Volume Baixo (Falar sutil):", 0, 100, default_val=thresh_cfg.get("low", 10), value_format="{v}%")
         self.slider_mid = LabeledSlider("Volume Médio (Conversa normal):", 0, 100, default_val=thresh_cfg.get("mid", 35), value_format="{v}%")

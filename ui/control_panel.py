@@ -47,9 +47,9 @@ class ControlPanel(QWidget):
         # Instanciando abas
         self.avatar_tab = AvatarTab( config_manager=self.config_manager, render=self.render, audio=self.audio, hotkeys=self.hotkeys, anim_manager=self.anim_logic)
         self.settings_tab = SettingsTab(self.config_manager, self.render, self.hotkeys)
-        self.audio_tab = AudioTab(self.config_manager, self.audio)
+        self.audio_tab = AudioTab(self.audio)
         self.effects_tab = EffectsTab(self.config_manager, self.effects, self.hotkeys)
-        self.background_tab = BackgroundTab(self.config_manager, bg_window)
+        self.background_tab = BackgroundTab(bg_manager)
         self.help_tab = HelpTab()
 
         self.tabs.addTab(self.avatar_tab, "👤 Avatar & Extras")

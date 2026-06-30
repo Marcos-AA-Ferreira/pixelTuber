@@ -14,11 +14,22 @@ class MusicToast(QWidget):
         
         self.init_ui()
         
-        # Animação de Opacidade (Fade In / Fade Out)
+        # Efeito de opacidade base compartilhado pelas animações
         self.opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self.opacity_effect)
-        self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.anim.setDuration(300)
+        
+        # --- MUDANÇA APLICADA: SEPARAÇÃO DE INSTÂNCIAS DE ANIMAÇÃO ---
+        # Instância exclusiva para o Fade In
+        self.anim_in = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim_in.setDuration(300)
+        
+        # Instância exclusiva para o Fade Out
+        self.anim_out = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.anim_out.setDuration(300)
+        
+        # --- MUDANÇA APLICADA: CORREÇÃO DO FLUXO DE SINAIS ---
+        # Conectado de forma fixa e única aqui para evitar acúmulo de conexões
+        self.anim_out.finished.connect(self.hide) 
         
         # Timer para fechar automaticamente após 4 segundos
         self.hide_timer = QTimer(self)
@@ -49,7 +60,7 @@ class MusicToast(QWidget):
         header_layout = QHBoxLayout()
         header_layout.setSpacing(5)
         
-        self.lbl_app_icon = QLabel("🎵") # Pode trocar por um QIcon depois
+        self.lbl_app_icon = QLabel("🎵")
         self.lbl_app_icon.setStyleSheet("border: none; background: transparent; font-size: 10px;")
         
         self.lbl_app_name = QLabel("Música • Agora")
@@ -69,7 +80,7 @@ class MusicToast(QWidget):
         self.lbl_cover.setFixedSize(40, 40)
         self.lbl_cover.setStyleSheet("background-color: #2c2c2e; border-radius: 6px; border: none;")
         self.lbl_cover.setAlignment(Qt.AlignCenter)
-        self.lbl_cover.setText("💿") # Placeholder
+        self.lbl_cover.setText("💿")
         
         # Textos (Título e Artista)
         text_layout = QVBoxLayout()
@@ -112,17 +123,15 @@ class MusicToast(QWidget):
         frame_layout.addLayout(body_layout)
 
     def update_info(self, title, artist, cover_pixmap=None):
-        # Trunca o texto se for muito longo
         self.lbl_title.setText(title[:25] + "..." if len(title) > 25 else title)
         self.lbl_artist.setText(artist[:25] + "..." if len(artist) > 25 else artist)
         
         if cover_pixmap:
             self.lbl_cover.setPixmap(cover_pixmap.scaled(40, 40, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation))
         else:
-            self.lbl_cover.setText("💿") # Reset ao placeholder
+            self.lbl_cover.setText("💿")
 
     def show_toast(self, position_name="bottom_right"):
-        # Garante que a notificação se posiciona corretamente no ecrã ativo
         screen_geo = QApplication.primaryScreen().availableGeometry()
         
         margin = 20
@@ -144,24 +153,27 @@ class MusicToast(QWidget):
         self.move(x, y)
         self.show()
         
-        # Inicia a animação de Fade In
-        self.anim.stop()
-        self.anim.setStartValue(0.0)
-        self.anim.setEndValue(1.0)
-        self.anim.start()
+        # --- MUDANÇA APLICADA: CONTROLE SEGURO DE ESTADO ---
+        self.anim_out.stop() # Interrompe a saída caso estivesse fechando
+        self.anim_in.stop()
+        self.anim_in.setStartValue(0.0)
+        self.anim_in.setEndValue(1.0)
+        self.anim_in.start()
         
-        # Reinicia o timer para esconder
+        # Reinicia o timer para fechar após os 4 segundos planejados
         self.hide_timer.start()
 
     def hide_toast(self):
-        self.anim.stop()
-        self.anim.setStartValue(self.opacity_effect.opacity())
-        self.anim.setEndValue(0.0)
-        self.anim.finished.connect(self.hide) # Esconde a janela quando o fade out terminar
-        self.anim.start()
+        # --- MUDANÇA APLICADA: USO DA INSTÂNCIA EXCLUSIVA OUT ---
+        self.anim_in.stop()  # Interrompe a entrada caso estivesse surgindo
+        self.anim_out.stop()
+        self.anim_out.setStartValue(self.opacity_effect.opacity())
+        self.anim_out.setEndValue(0.0)
+        
+        # REMOVIDO: .finished.connect(self.hide) daqui de dentro!
+        self.anim_out.start()
         self.hide_timer.stop()
 
     def mousePressEvent(self, event):
-        # Opcional: Se clicar no corpo da notificação, ela reinicia o timer
         self.hide_timer.start()
         super().mousePressEvent(event)

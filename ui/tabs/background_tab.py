@@ -27,13 +27,16 @@ class ClickableSlider(QSlider):
 
 
 class BackgroundTab(QWidget):
-    def __init__(self, config_manager, bg_window):
+    def __init__(self, bg_manager):
         super().__init__()
-        self.cfg = config_manager
-        self.bg_window = bg_window
+        # Guarda o gerenciador que foi injetado pelo painel de controle
+        self.bg_manager = bg_manager
         
-        # Instancia o Gerenciador de Lógica
-        self.mgr = BackgroundManager(config_manager, bg_window)
+        # Cria um "apelido" (alias) caso alguma outra parte do arquivo use self.mgr
+        self.mgr = bg_manager 
+       
+        self.cfg = bg_manager.cfg
+        self.bg_window = bg_manager.bg_window
         
         # Instancia a Notificação Flutuante
         self.toast = MusicToast(self.bg_window)
@@ -303,7 +306,7 @@ class BackgroundTab(QWidget):
         self.btn_play_pause.setText(char)
 
     def trigger_toast_notification(self):
-        current_path = self.cfg.data.get("bg_music_path", "")
+        current_path = self.bg_manager.get_current_music_path()
         if not current_path: return
         
         title = os.path.basename(current_path).replace(".wav", "").replace(".mp3", "")
