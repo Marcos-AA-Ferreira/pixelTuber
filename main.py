@@ -69,7 +69,7 @@ class PixelTuberApp:
             bg_window=self.bg_window,
             bg_manager=self.bg_manager
         )
-        
+
         # 6. Bandeja do Sistema
         self.setup_tray()
         self.current_duck_multiplier = 1.0

@@ -78,11 +78,13 @@ class AudioManager(QObject):
         self.noise_threshold = val
         self.cfg.data.setdefault("audio", {})["noise_gate"] = val
         self.cfg.save()
+        self.noiseGateChanged.emit(val)
 
     def set_gain(self, val):
         self.gain = val
         self.cfg.data.setdefault("audio", {})["gain"] = val
         self.cfg.save()
+        self.gainChanged.emit(val)
         
     def set_use_bandpass(self, state):
         self.use_bandpass = state
