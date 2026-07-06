@@ -5,13 +5,18 @@ from ui.styles.theme import Theme
 from .effects_tab_component.effect_creator import EffectCreator
 from .effects_tab_component.effect_card import EffectCard
 
+from core.event_bus import EventBus
+
 class EffectsTab(QWidget):
-    def __init__(self, config_manager, overlay_manager, hotkey_manager):
+    def __init__(self, config_manager, hotkey_manager): 
         super().__init__()
+        self.bus = EventBus.instance()
         self.cfg = config_manager
-        self.overlay = overlay_manager 
         self.hotkeys = hotkey_manager
-        self.profile = config_manager.data
+        
+        # CORREÇÃO: Em vez de acessar self.profile, acesse através da configuração
+        # Ajuste o caminho abaixo conforme a estrutura do seu JSON de config
+        self.profile = self.cfg.data.get("profile", {})
         
         if "custom_effects" not in self.profile:
             self.profile["custom_effects"] = {}
@@ -80,7 +85,7 @@ class EffectsTab(QWidget):
         layout_principal.addWidget(self.main_scroll)
         
         # Conecta o sinal global da Overlay para tratar o salvamento de coordenadas
-        self.overlay.positionUpdated.connect(self._handle_position_update)
+        self.bus.effect_position_updated.connect(self._handle_position_update)
         
         self.refresh_list()
 

@@ -14,6 +14,7 @@ from core.background_manager import BackgroundManager
 from core.hotkey_manager import HotkeyManager
 from core.effect_manager import EffectManager
 from core.utils import validate_path
+from core.event_bus import EventBus
 
 # --- Importação das Interfaces (UI) ---
 from ui.window.render_window import RenderWindow
@@ -59,15 +60,8 @@ class PixelTuberApp:
         
         # 5. Interface de Controle
         self.panel = ControlPanel(
-            config_manager=self.config,
-            audio=self.audio, 
-            render=self.render, 
-            effects=self.effects,
-            hotkeys=self.hotkeys,
-            anim_logic=self.anim_logic,
-            overlay=self.overlay,
-            bg_window=self.bg_window,
-            bg_manager=self.bg_manager
+            config_manager=self.config, audio=self.audio, render=self.render, 
+            hotkeys=self.hotkeys, anim_logic=self.anim_logic, bg_window=self.bg_window
         )
 
         # 6. Bandeja do Sistema
@@ -76,10 +70,10 @@ class PixelTuberApp:
         
         # 7. Aplicação do Estado Inicial
         self.audio.start()
-        bg_path = self.config.data.get("bg_path")
-        if validate_path(bg_path):
-            self.bg_window.set_background(bg_path)
-            
+        
+        # O Gerenciador assume o controle: ele lê o JSON, junta as peças e atualiza a janela!
+        self.bg_manager._apply_background_to_window()
+
         # --- MUDANÇA 2: FORÇAR O AVATAR A APARECER LOGO DE CARA ---
         main_set = self.config.data.get("animations", {}).get("main_set", "default")
         self.anim_logic.set_active_set(main_set)
@@ -96,6 +90,35 @@ class PixelTuberApp:
         self.timer.timeout.connect(self.update_loop)
         self.apply_fps_limit()
         self.frame_count = 0
+
+        # ==========================================
+        # CONEXÕES DO EVENT BUS
+        # ==========================================
+        bus = EventBus.instance()
+        
+        # Conecta os sinais da UI aos métodos reais dos Managers
+        bus.request_music_next.connect(self.bg_manager.play_next)
+        bus.request_music_prev.connect(self.bg_manager.play_prev)
+        bus.request_music_remove.connect(self.bg_manager.remove_music)
+        bus.request_music_change.connect(self.bg_manager.set_music)
+        # Se você tivesse um método genérico play/pause:
+        # bus.request_music_play_pause.connect(self.bg_manager.toggle_play_pause)
+        
+        # Conexões para efeitos
+        bus.request_play_effect.connect(self.effects.play_effect)
+
+        # PONTE DO OVERLAY: Pega o sinal do overlay e repassa para o Event Bus global
+        self.overlay.effectPositionChanged.connect(bus.effect_position_updated.emit)
+
+        # UI -> Manager (Comandos)
+        bus.request_bg_image_change.connect(self.bg_manager.set_background_image)
+        bus.request_bg_image_remove.connect(self.bg_manager.remove_background_image)
+        bus.request_bg_visual_update.connect(lambda d: self.bg_manager.update_visual_settings(**d))
+        bus.request_bg_audio_update.connect(lambda d: self.bg_manager.update_audio_settings(**d))
+
+        # Manager -> UI (Atualizações de Estado)
+        self.bg_manager.visualChanged.connect(bus.bg_visual_changed.emit)
+        self.bg_manager.musicChanged.connect(bus.bg_music_changed.emit)
 
     def setup_tray(self):
         self.tray_icon = QSystemTrayIcon(QIcon("assets/PAINEL-DE-CONTROLE_ICON.ico"), QApplication.instance())

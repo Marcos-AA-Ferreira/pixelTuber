@@ -10,8 +10,10 @@ from PySide6.QtMultimedia import QMediaMetaData, QMediaPlayer
 from ui.tabs.background_tab_component.music_toast import MusicToast
 from ui.widgets.labeled_slider import LabeledSlider
 from ui.styles.theme import Theme
+
 from core.utils import validate_path
-from core.background_manager import BackgroundManager  # Importa o gerenciador
+from core.background_manager import BackgroundManager
+from core.event_bus import EventBus
 
 class ClickableSlider(QSlider):
     def mousePressEvent(self, event):
@@ -27,27 +29,21 @@ class ClickableSlider(QSlider):
 
 
 class BackgroundTab(QWidget):
-    def __init__(self, bg_manager):
+    def __init__(self, config_manager, bg_window):
         super().__init__()
-        # Guarda o gerenciador que foi injetado pelo painel de controle
-        self.bg_manager = bg_manager
+        self.bus = EventBus.instance()
         
-        # Cria um "apelido" (alias) caso alguma outra parte do arquivo use self.mgr
-        self.mgr = bg_manager 
-       
-        self.cfg = bg_manager.cfg
-        self.bg_window = bg_manager.bg_window
+        # 1. Recebemos os dados puramente de UI e Configuração
+        self.cfg = config_manager
+        self.bg_window = bg_window
         
-        # Instancia a Notificação Flutuante
+        # 2. Instancia a Notificação Flutuante (O erro original era aqui)
         self.toast = MusicToast(self.bg_window)
         
         self.setStyleSheet(Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX + Theme.BUTTON_BASE)
         
         self.init_ui()
         self.connect_events_and_signals()
-        
-        # Sincroniza o estado inicial da UI disparando a atualização do gerenciador
-        self.mgr._apply_background_to_window()
 
     def init_ui(self):
         layout_principal = QVBoxLayout(self)
@@ -179,40 +175,37 @@ class BackgroundTab(QWidget):
         layout_principal.addWidget(scroll)
 
     def connect_events_and_signals(self):
-        """Centraliza todos os binds de botões e escutas de Sinais."""
-        # --- UI Interações -> Repassa para o Gerenciador ---
-        self.btn_sel.clicked.connect(self._on_choose_bg_clicked)
-        self.btn_rem.clicked.connect(self.mgr.remove_background_image)
+        """Versão unificada: Todos os binds repassam para o EventBus Global."""
         
-        # Sliders Visuais
+        # Controles Visuais
+        self.btn_sel.clicked.connect(self._on_choose_bg_clicked)
+        self.btn_rem.clicked.connect(self.bus.request_bg_image_remove.emit)
         self.combo_layer.currentIndexChanged.connect(self._dispatch_visual_update)
         self.slider_alpha.valueChanged.connect(self._dispatch_visual_update)
         self.slider_blur.valueChanged.connect(self._dispatch_visual_update)
         
         # Controles de Trilha Sonora
         self.btn_music_sel.clicked.connect(self._on_choose_music_clicked)
-        self.btn_music_stop.clicked.connect(self.mgr.remove_music)
-        self.btn_next.clicked.connect(self.mgr.play_next)
-        self.btn_prev.clicked.connect(self.mgr.play_prev)
+        self.btn_music_stop.clicked.connect(self.bus.request_music_remove.emit)
+        self.btn_next.clicked.connect(self.bus.request_music_next.emit)
+        self.btn_prev.clicked.connect(self.bus.request_music_prev.emit)
         self.btn_play_pause.clicked.connect(self.toggle_play_pause)
         
-        # Sliders de Áudio / Checkboxes
+        # Sliders e Áudio
         self.slider_music_vol.valueChanged.connect(self._dispatch_audio_update)
         self.check_mute.stateChanged.connect(self._dispatch_audio_update)
         self.check_loop.stateChanged.connect(self._dispatch_audio_update)
-        
-        # Configurações de Posição do Toast
         self.pos_combo.currentTextChanged.connect(self._on_toast_position_changed)
         
-        # Sincroniza botões do Toast de volta à ação
+        # Toast Reações
         self.toast.btn_play.clicked.connect(self.toggle_play_pause)
-        self.toast.btn_next.clicked.connect(self.mgr.play_next)
+        self.toast.btn_next.clicked.connect(self.bus.request_music_next.emit)
 
-        # --- Gerenciador -> Atualiza a UI (Escuta os Sinais) ---
-        self.mgr.visualChanged.connect(self._on_visual_changed)
-        self.mgr.musicChanged.connect(self._on_music_changed)
+        # Sinais Reversos (Escutando o EventBus em vez do Manager)
+        self.bus.bg_visual_changed.connect(self._on_visual_changed)
+        self.bus.bg_music_changed.connect(self._on_music_changed)
         
-        # Conexões Nativas do Player de Áudio do Sistema
+        # Conexões Nativas do Player (Essas permanecem locais pois são puramente de UI interativa)
         if self.bg_window and hasattr(self.bg_window, 'audio') and self.bg_window.audio.player:
             player = self.bg_window.audio.player
             player.positionChanged.connect(self._on_player_position_changed)
@@ -220,29 +213,28 @@ class BackgroundTab(QWidget):
             player.metaDataChanged.connect(self._lazy_metadata_update)
             self.slider_progress.sliderMoved.connect(player.setPosition)
 
-    # --- SLOTS DE DISPACHO (UI -> MGR) ---
-    
+    # --- SLOTS DE DISPACHO ---
     def _dispatch_visual_update(self):
-        self.mgr.update_visual_settings(
-            opacity=self.slider_alpha.value(),
-            blur=self.slider_blur.value(),
-            layer_level=self.combo_layer.currentIndex()
-        )
+        self.bus.request_bg_visual_update.emit({
+            "opacity": self.slider_alpha.value(),
+            "blur": self.slider_blur.value(),
+            "layer_level": self.combo_layer.currentIndex()
+        })
 
     def _dispatch_audio_update(self):
-        self.mgr.update_audio_settings(
-            volume=self.slider_music_vol.value(),
-            muted=self.check_mute.isChecked(),
-            loop=self.check_loop.isChecked()
-        )
+        self.bus.request_bg_audio_update.emit({
+            "volume": self.slider_music_vol.value(),
+            "muted": self.check_mute.isChecked(),
+            "loop": self.check_loop.isChecked()
+        })
 
     def _on_choose_bg_clicked(self):
         p, _ = QFileDialog.getOpenFileName(self, "Escolher Fundo", "", "Mídia (*.png *.jpg *.gif)")
-        if p: self.mgr.set_background_image(p)
+        if p: self.bus.request_bg_image_change.emit(p)
 
     def _on_choose_music_clicked(self):
         p, _ = QFileDialog.getOpenFileName(self, "Selecionar BGM", "", "Áudio (*.mp3 *.wav *.ogg)")
-        if p: self.mgr.set_music(p)
+        if p: self.bus.request_music_change.emit(p)
 
     def _on_toast_position_changed(self, text):
         self.cfg.data.setdefault("system", {})["toast_position"] = text
@@ -306,7 +298,8 @@ class BackgroundTab(QWidget):
         self.btn_play_pause.setText(char)
 
     def trigger_toast_notification(self):
-        current_path = self.bg_manager.get_current_music_path()
+        # CORREÇÃO: Lemos o caminho diretamente da fonte de verdade (ConfigManager)
+        current_path = self.cfg.data.get("bg_music_path", "")
         if not current_path: return
         
         title = os.path.basename(current_path).replace(".wav", "").replace(".mp3", "")

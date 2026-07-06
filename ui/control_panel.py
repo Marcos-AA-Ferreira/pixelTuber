@@ -10,48 +10,47 @@ from ui.tabs.background_tab import BackgroundTab
 from ui.tabs.help_tab import HelpTab
 
 class ControlPanel(QWidget):
-    def __init__(self, config_manager, audio, render, effects, hotkeys, anim_logic, overlay, bg_window, bg_manager):
-        # Inicializado sem parent para ser uma janela totalmente independente
+    # 1. Assinatura limpa, exigindo apenas 6 parâmetros agora
+    def __init__(self, config_manager, audio, render, hotkeys, anim_logic, bg_window):
         super().__init__(None)
         
-        # Título único e Ícone
         self.setWindowTitle("PixelTuber - Painel de Controle")
         self.setWindowIcon(QIcon("assets/PAINEL-DE-CONTROLE_ICON.ico"))
         
-        # Configuração de Janela
         self.setWindowFlags(
-            Qt.Window | 
-            Qt.WindowStaysOnTopHint | 
-            Qt.CustomizeWindowHint |
-            Qt.WindowTitleHint | 
-            Qt.WindowCloseButtonHint | 
-            Qt.WindowMinMaxButtonsHint
+            Qt.Window | Qt.WindowStaysOnTopHint | Qt.CustomizeWindowHint | 
+            Qt.WindowTitleHint | Qt.WindowCloseButtonHint | Qt.WindowMinMaxButtonsHint
         )
         
+        # 2. Remoção das variáveis antigas (self.effects, self.overlay, self.bg_manager)
         self.config_manager = config_manager
         self.audio = audio
         self.render = render
-        self.effects = effects
         self.hotkeys = hotkeys
         self.anim_logic = anim_logic
-        self.overlay = overlay
         self.bg_window = bg_window
         
         self.resize(600, 900)
 
         main_layout = QVBoxLayout(self)
+        self.tabs = QTabWidget()
 
         # --- SISTEMA DE ABAS ---
         self.tabs = QTabWidget()
         
         # Instanciando abas
-        self.avatar_tab = AvatarTab( config_manager=self.config_manager, render=self.render, audio=self.audio, hotkeys=self.hotkeys, anim_manager=self.anim_logic)
+        self.avatar_tab = AvatarTab(
+            config_manager=self.config_manager, render=self.render, 
+            audio=self.audio, hotkeys=self.hotkeys, anim_manager=self.anim_logic
+        )
         self.settings_tab = SettingsTab(self.config_manager, self.render, self.hotkeys)
         self.audio_tab = AudioTab(self.audio)
-        self.effects_tab = EffectsTab(self.config_manager, self.effects, self.hotkeys)
-        self.background_tab = BackgroundTab(bg_manager)
         self.help_tab = HelpTab()
-
+        
+        # Abas refatoradas não recebem mais os managers!
+        self.effects_tab = EffectsTab(self.config_manager, self.hotkeys)
+        self.background_tab = BackgroundTab(self.config_manager, self.bg_window)
+        
         self.tabs.addTab(self.avatar_tab, "👤 Avatar & Extras")
         self.tabs.addTab(self.settings_tab, "⚙️ Geral")
         self.tabs.addTab(self.audio_tab, "🎙 Áudio")
