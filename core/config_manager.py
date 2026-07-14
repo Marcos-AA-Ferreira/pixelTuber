@@ -85,3 +85,87 @@ class ConfigManager:
         path = os.path.join(self.profiles_dir, f"{profile_name}.json")
         if os.path.exists(path):
             os.remove(path)
+
+    # ==========================================
+    # DOMÍNIO: ÁUDIO
+    # ==========================================
+    def get_audio_config(self, key: str, default_value=None):
+        """Busca um valor seguro dentro das configurações de áudio."""
+        return self.data.get("audio", {}).get(key, default_value)
+
+    def set_audio_config(self, key: str, value):
+        """Define um valor de áudio e salva automaticamente."""
+        self.data.setdefault("audio", {})[key] = value
+        self.save()
+
+    def get_audio_threshold(self, threshold_key: str, default_value=None):
+        """Busca os limites (low, med, high) de forma isolada."""
+        return self.data.get("audio", {}).get("thresholds", {}).get(threshold_key, default_value)
+
+    def set_audio_threshold(self, threshold_key: str, value):
+        """Define e salva um limite específico de áudio."""
+        self.data.setdefault("audio", {}).setdefault("thresholds", {})[threshold_key] = value
+        self.save()
+
+    # ==========================================
+    # DOMÍNIO: RENDERIZAÇÃO
+    # ==========================================
+    def get_render_config(self, key: str, default_value=None):
+        return self.data.get("render", {}).get(key, default_value)
+
+    def set_render_config(self, key: str, value):
+        self.data.setdefault("render", {})[key] = value
+        self.save()
+
+    # ==========================================
+    # DOMÍNIO: ANIMAÇÕES E SKINS
+    # ==========================================
+    def get_animation_config(self, key: str, default_value=None):
+        """Busca configurações gerais de animação."""
+        return self.data.get("animations", {}).get(key, default_value)
+
+    def set_animation_config(self, key: str, value):
+        """Define configurações gerais de animação e salva."""
+        self.data.setdefault("animations", {})[key] = value
+        self.save()
+
+    def get_active_set(self):
+        """Retorna o nome da skin/avatar atual."""
+        return self.get_animation_config("main_set", "default")
+
+    def get_all_sets(self):
+        """Retorna o dicionário com todas as skins."""
+        return self.get_animation_config("sets", {})
+
+    def update_sprite_in_set(self, set_name: str, state: str, path: str):
+        """Atualiza o caminho de um sprite específico dentro de uma skin."""
+        sets = self.get_all_sets()
+        if set_name not in sets:
+            sets[set_name] = {"mute": "", "low": "", "med": "", "high": "", "very_high": ""}
+        
+        sets[set_name][state] = path
+        self.set_animation_config("sets", sets) # Salva automaticamente
+
+    # ==========================================
+    # DOMÍNIO: BACKGROUND (PLANO DE FUNDO e MÚSICAS)
+    # ==========================================
+    def get_bg_config(self, key: str, default_value=None):
+        """Busca de forma segura um valor de plano de fundo na raiz das configurações."""
+        return self.data.get(key, default_value)
+
+    def set_bg_config(self, key: str, value):
+        """Define um valor de plano de fundo na raiz e salva automaticamente."""
+        self.data[key] = value
+        self.save()
+
+    # ==========================================
+    # DOMÍNIO: SISTEMA
+    # ==========================================
+    def get_system_config(self, key: str, default_value=None):
+        """Busca um valor de configuração interna do sistema."""
+        return self.data.get("system", {}).get(key, default_value)
+
+    def set_system_config(self, key: str, value):
+        """Define um valor de sistema e salva automaticamente."""
+        self.data.setdefault("system", {})[key] = value
+        self.save()

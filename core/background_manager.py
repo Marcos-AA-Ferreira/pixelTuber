@@ -21,15 +21,17 @@ class BackgroundManager(QObject):
         self.load_initial_state()
 
     def _ensure_config_keys(self):
-        """Garante que as chaves padrão existam no arquivo de configuração."""
+        """Garante que as chaves padrão existam usando a API blindada do ConfigManager."""
         defaults = {
             "bg_path": "", "bg_opacity": 100, "bg_blur": 0, "bg_layer_level": 0,
             "bg_music_path": "", "bg_music_vol": 50, "bg_music_muted": False, "bg_music_loop": True
         }
         for key, value in defaults.items():
-            self.cfg.data.setdefault(key, value)
-        self.cfg.data.setdefault("system", {}).setdefault("toast_position", "Canto Inferior Direito")
-        self.cfg.save()
+            if self.cfg.get_bg_config(key) is None:
+                self.cfg.set_bg_config(key, value)
+        
+        if self.cfg.get_system_config("toast_position") is None:
+            self.cfg.set_system_config("toast_position", "Canto Inferior Direito")
 
     def load_initial_state(self):
         """Carrega o estado inicial do JSON."""
@@ -51,15 +53,11 @@ class BackgroundManager(QObject):
         self.playlistChanged.emit(self.playlist)
 
     # --- LÓGICA VISUAL ---
-    
-    def update_visual_settings(self, opacity, blur, layer_level):
-        """Atualiza e aplica as configurações visuais e de renderização."""
-        self.cfg.data.update({
-            "bg_opacity": opacity,
-            "bg_blur": blur,
-            "bg_layer_level": layer_level
-        })
-        self.cfg.save()
+    def update_visual_settings(self, settings: dict):
+        """Atualiza as configurações visuais de background de forma segura."""
+        for key, value in settings.items():
+            self.cfg.set_bg_config(key, value)
+            
         self._apply_background_to_window()
 
     def set_background_image(self, path):
@@ -119,15 +117,14 @@ class BackgroundManager(QObject):
             else:
                 if path in self.playlist:
                     self.current_index = self.playlist.index(path)
-            
-            self.cfg.data["bg_music_path"] = path
-            self.cfg.save()
+
+            self.cfg.set_bg_config("bg_music_path", path)
             self.musicChanged.emit(path)
             self._apply_background_to_window()
 
     def get_current_music_path(self):
         """Retorna o caminho da música atual guardado nas configurações."""
-        return self.cfg.data.get("bg_music_path", "")
+        return self.cfg.get_bg_config("bg_music_path", "")
 
     def play_next(self):
         if not self.playlist: return

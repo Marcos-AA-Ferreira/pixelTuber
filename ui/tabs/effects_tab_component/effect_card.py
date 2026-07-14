@@ -2,16 +2,16 @@ import os
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtCore import Qt, Signal, QSize, QTimer
+from core.event_bus import EventBus
 
 class EffectCard(QFrame):
     clicked_delete = Signal(str)
     clicked_edit = Signal(str)
 
-    def __init__(self, eid, data, overlay_manager):
-        super().__init__()
+    def __init__(self, eid, data, parent=None):
+        super().__init__(parent)
         self.eid = eid
         self.data = data
-        self.overlay = overlay_manager 
         self.init_ui()
 
     def init_ui(self):
@@ -105,18 +105,20 @@ class EffectCard(QFrame):
         """Dispara o efeito e controla o LED baseado na duração."""
         self.set_led_state(True) # Fica Verde
         
-        # Envia comando para o Overlay
-        self.overlay.play_effect(
-            visual_path=self.data.get('visual'),
-            audio_path=self.data.get('audio'),
-            duration=self.data.get('duration', 4000),
-            scale=self.data.get('scale', 1.0),
-            opacity=self.data.get('opacity', 1.0),
-            x=self.data.get('x', 500),
-            y=self.data.get('y', 300),
-            audio_start=self.data.get('audio_start', 0.0),
-            audio_end=self.data.get('audio_end', 0.0)
-        )
+        # Envia comando via EventBus
+        payload = {
+            "effect_id": self.eid,
+            "visual_path": self.data.get('visual'),
+            "audio_path": self.data.get('audio'),
+            "duration": self.data.get('duration', 4000),
+            "scale": self.data.get('scale', 1.0),
+            "opacity": self.data.get('opacity', 1.0),
+            "x": self.data.get('x', 500),
+            "y": self.data.get('y', 300),
+            "audio_start": self.data.get('audio_start', 0.0),
+            "audio_end": self.data.get('audio_end', 0.0)
+        }
+        EventBus.instance().request_play_effect.emit(payload)
         
         # Timer para voltar o LED para vermelho após a duração do efeito
         duration = self.data.get('duration', 4000)

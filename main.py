@@ -113,8 +113,8 @@ class PixelTuberApp:
         # UI -> Manager (Comandos)
         bus.request_bg_image_change.connect(self.bg_manager.set_background_image)
         bus.request_bg_image_remove.connect(self.bg_manager.remove_background_image)
-        bus.request_bg_visual_update.connect(lambda d: self.bg_manager.update_visual_settings(**d))
-        bus.request_bg_audio_update.connect(lambda d: self.bg_manager.update_audio_settings(**d))
+        bus.request_bg_visual_update.connect(lambda d: self.bg_manager.update_visual_settings(d))
+        bus.request_bg_audio_update.connect(lambda d: self.bg_manager.update_audio_settings(d.get("volume"), d.get("muted"), d.get("loop")))
 
         # Manager -> UI (Atualizações de Estado)
         self.bg_manager.visualChanged.connect(bus.bg_visual_changed.emit)
@@ -205,11 +205,21 @@ class PixelTuberApp:
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False) 
+    app.setQuitOnLastWindowClosed(False)
     
+    # --- CARREGAMENTO DO TEMA GLOBAL (QSS) ---
+    qss_path = os.path.join(os.path.dirname(__file__), "ui", "styles", "main.qss")
+    if os.path.exists(qss_path):
+        with open(qss_path, "r", encoding="utf-8") as f:
+            app.setStyleSheet(f.read())
+    else:
+        print("Aviso: Arquivo main.qss não encontrado.")
+    # -----------------------------------------
+
     try:
         engine = PixelTuberApp()
         sys.exit(app.exec())
+
     except Exception as e:
         print(f"❌ Erro Crítico: {e}")
         import traceback

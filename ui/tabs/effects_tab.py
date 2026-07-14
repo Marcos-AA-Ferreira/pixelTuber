@@ -109,18 +109,20 @@ class EffectsTab(QWidget):
             self.cfg.save()
 
     def preview_effect(self, data):
-        self.overlay.play_effect(
-            effect_id="preview_temp", 
-            visual_path=data.get('visual', ''),
-            audio_path=data.get('audio', ''),
-            duration=data.get('duration', 4000),
-            scale=data.get('scale', 1.0),
-            opacity=data.get('opacity', 1.0),
-            x=data.get('x', 500), 
-            y=data.get('y', 300),
-            audio_start=data.get('audio_start', 0.0),
-            audio_end=data.get('audio_end', 0.0)
-        )
+        # Monta o pacote e despacha pelo EventBus
+        payload = {
+            "effect_id": "preview_temp", 
+            "visual_path": data.get('visual', ''),
+            "audio_path": data.get('audio', ''),
+            "duration": data.get('duration', 4000),
+            "scale": data.get('scale', 1.0),
+            "opacity": data.get('opacity', 1.0),
+            "x": data.get('x', 500), 
+            "y": data.get('y', 300),
+            "audio_start": data.get('audio_start', 0.0),
+            "audio_end": data.get('audio_end', 0.0)
+        }
+        self.bus.request_play_effect.emit(payload)
 
     def add_new_effect(self, data):
         eid = data.pop("id")
@@ -159,7 +161,7 @@ class EffectsTab(QWidget):
             t = d.get("type") or self._determine_effect_type(d)
             if t not in self.grids: t = "visual"
             
-            card = EffectCard(eid, d, self.overlay)
+            card = EffectCard(eid, d)
             card.clicked_delete.connect(self.remove_effect)
             
             # Ao invés de mandar para o painel antigo, agora chama o modal `open_creator`

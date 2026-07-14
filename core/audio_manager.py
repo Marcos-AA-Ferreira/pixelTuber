@@ -10,6 +10,8 @@ class AudioManager(QObject):
     volumeChanged = Signal(float)
     muteToggled = Signal(bool)
     audioProcessed = Signal(float, list)
+    noiseGateChanged = Signal(float)
+    gainChanged = Signal(float)
 
     def __init__(self, config_manager, sample_rate=None):
         super().__init__()
@@ -21,9 +23,9 @@ class AudioManager(QObject):
         viz_cfg = self.cfg.data.get("visualizer", {})
         
         # Configurações do dispositivo e ganho
-        self.device_index = audio_cfg.get("device_index")
-        self.gain = audio_cfg.get("gain", 1.0)
-        self.noise_threshold = audio_cfg.get("noise_gate", 0.02)
+        self.device_index = self.cfg.get_audio_config("device_index")
+        self.gain = self.cfg.get_audio_config("gain", 1.0)
+        self.noise_threshold = self.cfg.get_audio_config("noise_gate", 0.02)
         self.muted = False
         self.use_bandpass = audio_cfg.get("use_bandpass", True)
 
@@ -166,12 +168,11 @@ class AudioManager(QObject):
             # Caso o índice antigo seja inválido ou de saída, busca o padrão do sistema
             print(f"⚠️ Dispositivo index {self.device_index} inválido para entrada. Buscando padrão do sistema...")
             try:
-                default_device = sd.default.device[0] # Índice padrão de gravação (Input)
+                default_device = sd.default.device[0]
                 if default_device != -1:
                     self.device_index = default_device
                     # Atualiza o arquivo de configuração para corrigir futuros boots
-                    self.cfg.data.setdefault("audio", {})["device_index"] = default_device
-                    self.cfg.save()
+                    self.cfg.set_audio_config("device_index", default_device)
                 else:
                     print("❌ Nenhum dispositivo de entrada padrão encontrado no Windows.")
                     return
@@ -214,51 +215,43 @@ class AudioManager(QObject):
     
     def change_device(self, new_index): 
         self.device_index = new_index
-        self.cfg.data.setdefault("audio", {})["device_index"] = new_index
-        self.cfg.save()
+        self.cfg.set_audio_config("device_index", new_index)
         self.start()
 
     def set_auto_ducking(self, state):
         """Define, sincroniza o estado interno e grava o Auto-Ducking."""
         self.auto_ducking = state
-        self.cfg.data.setdefault("audio", {})["auto_ducking"] = state
-        self.cfg.save()
+        self.cfg.set_audio_config("auto_ducking", state)   
 
     def set_visualizer_enabled(self, state):
         """Define, sincroniza o estado interno e grava se o visualizador está ativo."""
         self.visualizer_enabled = state
-        self.cfg.data.setdefault("visualizer", {})["enabled"] = state
-        self.cfg.save()
+        self.cfg.set_audio_config("enabled", state)
 
     def set_visualizer_style(self, style):
         """Define, sincroniza o estilo visual e grava."""
         self.visualizer_style = style
-        self.cfg.data.setdefault("visualizer", {})["style"] = style
-        self.cfg.save()
+        self.cfg.set_audio_config("style", style)
 
     def set_mode(self, mode):
         """Define, sincroniza o modo de voz (smooth ou standard) e grava."""
         self.mode = mode
-        self.cfg.data.setdefault("audio", {})["mode"] = mode
-        self.cfg.save()
+        self.cfg.set_audio_config("mode", mode)
 
     def set_hold_time(self, val):
         """Define, sincroniza o tempo de retenção do áudio e grava."""
         self.hold_time = val
-        self.cfg.data.setdefault("audio", {})["hold_time"] = val
-        self.cfg.save()
+        self.cfg.set_audio_config("hold_time", val)
 
     def set_threshold(self, key, val):
         """Define, sincroniza os limites de ativação (thresholds) por chave e grava."""
         self.thresholds[key] = val
-        self.cfg.data.setdefault("audio", {}).setdefault("thresholds", {})[key] = val
-        self.cfg.save()
+        self.cfg.set_audio_threshold(key, val)
 
     def set_device_index(self, new_index):
         """Define e grava o índice do dispositivo de áudio atual e reinicia o stream."""
         self.device_index = new_index
-        self.cfg.data.setdefault("audio", {})["device_index"] = new_index
-        self.cfg.save()
+        self.cfg.set_audio_config("device_index", new_index)
         
         # Se o microfone mudar com o app rodando, para o antigo e inicia o novo
         if hasattr(self, 'stream') and self.stream is not None:

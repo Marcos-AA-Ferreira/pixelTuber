@@ -2,6 +2,7 @@ import os
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFileDialog
 from PySide6.QtCore import Qt, QUrl, QTimer, Signal
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from ui.widgets.file_picker import FilePickerWidget
 
 # Tenta importar o novo trimmer minimalista
 try:
@@ -31,24 +32,6 @@ class AudioSection(QFrame):
 
     def init_ui(self):
         self.setObjectName("AudioGroup")
-        self.setStyleSheet("""
-            #AudioGroup { 
-                background: #1e1e1e; 
-                border-radius: 10px; 
-                padding: 15px; 
-                border: 1px solid #333; 
-            }
-            QLabel { color: #888; font-size: 11px; font-weight: bold; }
-            QPushButton { 
-                padding: 8px 15px; 
-                border-radius: 6px; 
-                background: #2d2d2d; 
-                color: #ddd; 
-                border: 1px solid #444; 
-                font-size: 11px;
-            }
-            QPushButton:hover { background: #3d3d3d; border-color: #555; }
-        """)
         
         lay = QVBoxLayout(self)
         lay.setSpacing(10)
@@ -59,14 +42,14 @@ class AudioSection(QFrame):
         lay.addLayout(header)
         
         row = QHBoxLayout()
-        self.btn_a = QPushButton("📂 SELECIONAR FICHEIRO")
-        self.btn_a.clicked.connect(self.sel_a)
+        self.file_picker = FilePickerWidget("SELECIONAR FICHEIRO", "Abrir Áudio", "Som (*.mp3 *.wav *.ogg)")
+        self.file_picker.fileSelected.connect(self._on_audio_selected)
         
         self.btn_preview = QPushButton("▶️ OUVIR SELEÇÃO")
         self.btn_preview.clicked.connect(self.preview_cut)
         self.btn_preview.setEnabled(False) 
         
-        row.addWidget(self.btn_a)
+        row.addWidget(self.file_picker)
         row.addWidget(self.btn_preview)
         lay.addLayout(row)
 
@@ -74,18 +57,16 @@ class AudioSection(QFrame):
         self.trimmer.valuesChanged.connect(self.update_times)
         lay.addWidget(self.trimmer)
 
-    def sel_a(self):
-        p, _ = QFileDialog.getOpenFileName(self, "Abrir Áudio", "", "Som (*.mp3 *.wav *.ogg)")
-        if p:
-            self.pending_load = None # Seleção manual, resetamos carregamento pendente
-            self._load_file(p)
+    def _on_audio_selected(self, path):
+        """Recebe o caminho do componente e avança com a lógica."""
+        self.pending_load = None # Seleção manual, resetamos carregamento pendente
+        self._load_file(path)
 
     def _load_file(self, p):
         """Lógica interna para carregar o arquivo e atualizar a UI."""
         self.path_a = p
-        self.btn_a.setText(f"✅ {os.path.basename(p)[:20]}...")
-        self.btn_a.setStyleSheet("background: #1b4d2e; color: #85e89d; border-color: #238636;")
-        
+        self.file_picker.set_path(p) # ✅ O widget cuida da estética do botão!
+
         file_url = QUrl.fromLocalFile(os.path.abspath(p))
         self.meta_player.setSource(file_url)
 
@@ -149,7 +130,6 @@ class AudioSection(QFrame):
     def reset(self):
         self.path_a = ""
         self.pending_load = None
-        self.btn_a.setText("📂 SELECIONAR FICHEIRO")
-        self.btn_a.setStyleSheet("")
+        self.file_picker.set_path("")
         self.btn_preview.setEnabled(False)
         self.trimmer.set_duration(0)

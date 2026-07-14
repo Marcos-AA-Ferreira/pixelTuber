@@ -1,6 +1,7 @@
 import os
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel, QFileDialog, QSlider
 from PySide6.QtCore import Qt, Signal
+from ui.widgets.file_picker import FilePickerWidget
 
 class VisualSection(QFrame):
     # Sinal enviado para o Creator, que por sua vez envia para o Overlay
@@ -13,36 +14,6 @@ class VisualSection(QFrame):
 
     def init_ui(self):
         self.setObjectName("VisualGroup")
-        self.setStyleSheet("""
-            #VisualGroup { 
-                background: #1e1e1e; 
-                border-radius: 10px; 
-                padding: 15px; 
-                border: 1px solid #333; 
-            }
-            QLabel { color: #888; font-size: 11px; font-weight: bold; }
-            QLineEdit { 
-                padding: 6px; border-radius: 4px; background: #2d2d2d; color: white; border: 1px solid #444; 
-                font-family: 'Consolas'; font-size: 12px;
-            }
-            QPushButton { 
-                padding: 8px 15px; 
-                border-radius: 6px; 
-                background: #2d2d2d; 
-                color: #ddd; 
-                border: 1px solid #444; 
-                font-size: 11px;
-            }
-            QPushButton:hover { background: #3d3d3d; border-color: #555; }
-            
-            /* Estilo específico para quando o botão de teste está ativo (semelhante ao áudio) */
-            QPushButton#BtnPreview:enabled {
-                color: #58a6ff;
-                border-color: #388bfd;
-            }
-
-            QSlider::handle:horizontal { background: #58a6ff; border-radius: 5px; width: 12px; height: 12px; }
-        """)
         
         main_lay = QVBoxLayout(self)
         main_lay.setSpacing(12)
@@ -53,17 +24,19 @@ class VisualSection(QFrame):
         header_row.addStretch()
         main_lay.addLayout(header_row)
 
-        # --- ARQUIVO E TESTE (Igual ao Áudio) ---
+        # --- ARQUIVO E TESTE ---
         row_file = QHBoxLayout()
-        self.btn_v = QPushButton("📂 SELECIONAR ARQUIVO")
-        self.btn_v.clicked.connect(self.sel_v)
+        self.file_picker = FilePickerWidget("SELECIONAR ARQUIVO", "Selecionar Mídia", "Mídia (*.png *.jpg *.gif *.webp *.mp4)")
+        
+        # Conecta o sinal do nosso componente a um novo método que ativará o botão de teste
+        self.file_picker.fileSelected.connect(self._on_file_selected)
         
         self.btn_live = QPushButton("👁️ TESTAR VISUAL")
         self.btn_live.setObjectName("BtnPreview")
         self.btn_live.setEnabled(False) # Começa desativado como o de áudio
         self.btn_live.clicked.connect(lambda: self.previewRequested.emit())
         
-        row_file.addWidget(self.btn_v, 1)
+        row_file.addWidget(self.file_picker, 1)
         row_file.addWidget(self.btn_live)
         main_lay.addLayout(row_file)
 
@@ -130,14 +103,10 @@ class VisualSection(QFrame):
         if self.path_v:
             self.previewRequested.emit()
 
-    def sel_v(self):
-        p, _ = QFileDialog.getOpenFileName(self, "Selecionar Mídia", "", "Mídia (*.png *.jpg *.gif *.webp *.mp4)")
-        if p:
-            self.path_v = p
-            self.btn_v.setText(f"✅ {os.path.basename(p)[:15]}...")
-            self.btn_v.setStyleSheet("background: #1b4d2e; color: #85e89d; border-color: #238636;")
-            self.btn_live.setEnabled(True) # Ativa o botão de teste
-            self.previewRequested.emit()
+    def _on_file_selected(self, path):
+        self.path_v = path
+        self.btn_live.setEnabled(True) # Ativa o botão de teste
+        self.previewRequested.emit()
 
     def get_data(self):
         try:
@@ -165,14 +134,10 @@ class VisualSection(QFrame):
         self.pos_x.setText(str(data.get("x", 500)))
         self.pos_y.setText(str(data.get("y", 15)))
         
-        if self.path_v:
-            self.btn_v.setText(f"✅ {os.path.basename(self.path_v)[:15]}...")
-            self.btn_v.setStyleSheet("background: #1b4d2e; color: #85e89d; border-color: #238636;")
-            self.btn_live.setEnabled(True)
-        else:
-            self.btn_v.setText("📂 SELECIONAR ARQUIVO")
-            self.btn_v.setStyleSheet("")
-            self.btn_live.setEnabled(False)
+        # ✅ O FilePickerWidget cuida da estética do botão automaticamente!
+        self.file_picker.set_path(self.path_v)
+        self.btn_live.setEnabled(bool(self.path_v))
+
         self.blockSignals(False)
 
     def reset(self):
@@ -181,6 +146,7 @@ class VisualSection(QFrame):
         self.opacity_slider.setValue(100)
         self.pos_x.setText("500")
         self.pos_y.setText("15")
-        self.btn_v.setText("📂 SELECIONAR ARQUIVO")
-        self.btn_v.setStyleSheet("")
+        
+        # ✅ Reseta o botão para o estado original
+        self.file_picker.set_path("")
         self.btn_live.setEnabled(False)

@@ -216,9 +216,9 @@ class BackgroundTab(QWidget):
     # --- SLOTS DE DISPACHO ---
     def _dispatch_visual_update(self):
         self.bus.request_bg_visual_update.emit({
-            "opacity": self.slider_alpha.value(),
-            "blur": self.slider_blur.value(),
-            "layer_level": self.combo_layer.currentIndex()
+            "bg_opacity": self.slider_alpha.value(),
+            "bg_blur": self.slider_blur.value(),
+            "bg_layer_level": self.combo_layer.currentIndex()
         })
 
     def _dispatch_audio_update(self):
@@ -245,7 +245,7 @@ class BackgroundTab(QWidget):
 
     def _on_visual_changed(self, bg_config):
         """Atualiza estritamente os componentes visuais locais baseados no Model."""
-        path = bg_config["path"]
+        path = bg_config.get("path", "")
         if validate_path(path):
             pix = QPixmap(path)
             self.preview_label.setPixmap(pix.scaled(self.preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))

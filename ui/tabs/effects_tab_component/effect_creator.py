@@ -34,34 +34,6 @@ class EffectCreator(QDialog):
 
     def init_ui(self):
         self.setObjectName("MainForm")
-        self.setStyleSheet("""
-            #MainForm { background-color: #2b2b2b; }
-            QLineEdit { 
-                padding: 10px; border-radius: 6px; background: #1a1a1a; color: white; border: 1px solid #444; 
-            }
-            #Title { color: #58a6ff; font-size: 15px; font-weight: bold; }
-            #SubLabel { color: #8b949e; font-size: 10px; font-weight: bold; text-transform: uppercase; }
-            
-            /* Botões de Modo */
-            #ModeBtn { background: #3d3d3d; border: 1px solid #555; padding: 5px; font-size: 10px; border-radius: 4px; color: white;}
-            #ModeBtn:checked { background: #1f6feb; border-color: #58a6ff; }
-
-            /* Botões de Duração (+ / -) */
-            #StepBtn { 
-                background: #3d3d3d; color: white; border-radius: 15px; 
-                font-weight: bold; font-size: 16px; min-width: 30px; max-width: 30px; min-height: 30px;
-            }
-            #StepBtn:hover { background: #58a6ff; }
-            
-            #DurDisplay { 
-                background: #1a1a1a; color: #58a6ff; font-weight: bold; font-family: 'Consolas';
-                font-size: 14px; border: 1px solid #444; border-radius: 6px; padding: 5px 15px;
-            }
-
-            #SaveBtn { background: #238636; color: white; font-weight: bold; font-size: 12px; border-radius: 6px; padding: 10px; }
-            #CancelBtn { background: transparent; color: #f85149; font-weight: bold; border: 1px solid #f85149; border-radius: 6px; padding: 10px; }
-            #CancelBtn:hover { background: #f85149; color: white; }
-        """)
         
         main_lay = QVBoxLayout(self)
         main_lay.setContentsMargins(30, 30, 30, 30)

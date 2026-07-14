@@ -26,12 +26,9 @@ class EffectManager(QObject):
         self.audio_player.setAudioOutput(self.audio_output)
         self.audio_output.setVolume(1.0)
 
-    def play_effect(self, effect_id="preview", **kwargs):
-        """
-        Recebe os argumentos da aba de efeitos e processa o disparo.
-        Suporta chamadas como: play_effect(id, visual_path="...", duration=1000)
-        """
-        config = kwargs
+    def play_effect(self, config):
+        """Recebe o dicionário via EventBus e processa o disparo."""
+        effect_id = config.get("effect_id", "preview")
         
         # Mapeamento de compatibilidade
         if "visual_path" in config:
@@ -45,11 +42,11 @@ class EffectManager(QObject):
             # Injetamos o ID na config para que o Widget saiba quem ele é ao ser movido
             config["effect_id"] = effect_id
             self.overlay.play_custom_effect(config)
-        
+            
         # Se for apenas áudio
         elif validate_path(audio):
             self._play_standalone_audio(
-                audio, 
+                audio,
                 config.get("audio_start", 0.0),
                 config.get("audio_end", 0.0)
             )
