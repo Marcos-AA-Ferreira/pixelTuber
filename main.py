@@ -59,10 +59,7 @@ class PixelTuberApp:
         self.hotkeys.register_action("prev_music", self.bg_manager.play_prev)
         
         # 5. Interface de Controle
-        self.panel = ControlPanel(
-            config_manager=self.config, audio=self.audio, render=self.render, 
-            hotkeys=self.hotkeys, anim_logic=self.anim_logic, bg_window=self.bg_window
-        )
+        self.panel = ControlPanel(self.config)
 
         # 6. Bandeja do Sistema
         self.setup_tray()
@@ -119,6 +116,83 @@ class PixelTuberApp:
         # Manager -> UI (Atualizações de Estado)
         self.bg_manager.visualChanged.connect(bus.bg_visual_changed.emit)
         self.bg_manager.musicChanged.connect(bus.bg_music_changed.emit)
+
+        # --- NOVAS CONEXÕES DO ÁUDIO (A Ponte) ---
+        # 1. Escuta comandos da UI e executa no AudioManager
+        bus.request_audio_gain_change.connect(self.audio.set_gain)
+        bus.request_audio_noise_gate_change.connect(self.audio.set_noise_gate)
+        bus.request_audio_hold_time_change.connect(self.audio.set_hold_time)
+        bus.request_audio_ducking_toggle.connect(self.audio.set_auto_ducking)
+        bus.request_audio_threshold_change.connect(self.audio.set_threshold)
+        bus.request_visualizer_style_change.connect(self.audio.set_visualizer_style)
+        bus.request_audio_device_change.connect(self.audio.set_device_index)
+
+        # Trata o pedido de recarregar microfones: pega a lista do Manager e devolve pro Bus
+        bus.request_refresh_devices.connect(
+            lambda: bus.audio_devices_updated.emit(self.audio.get_filtered_input_devices())
+        )
+
+        # 2. Envia atualizações de estado do AudioManager para a UI
+        self.audio.volumeChanged.connect(bus.audio_volume_updated.emit)
+        self.audio.audioProcessed.connect(lambda vol, bands: bus.audio_processed_updated.emit(vol, bands))
+        
+        # --- NOVAS CONEXÕES DO AVATAR/RENDER (A Ponte) ---
+        bus.request_geometry_update.connect(self.render.update_geometry)
+        bus.request_animation_set_change.connect(self.anim_logic.set_active_set)
+        
+        bus.request_avatar_visibility_toggle.connect(self.render.setVisible)
+        bus.request_avatar_minimize_toggle.connect(
+            lambda: self.render.showNormal() if self.render.isMinimized() else self.render.showMinimized()
+        )
+        bus.request_mic_mute_toggle.connect(self.audio.set_muted)
+        bus.request_hotkeys_reload.connect(self.hotkeys.setup_defaults)
+
+        # O Manager avisa a UI quando o estado do microfone muda:
+        self.audio.muteToggled.connect(bus.audio_mute_updated.emit)
+
+        # --- NOVAS CONEXÕES FINAIS (Settings, Effects, Background) ---
+        
+        # 1. Configurações da Janela de Renderização
+        def toggle_on_top(state):
+            flags = self.render.windowFlags()
+            if state:
+                self.render.setWindowFlags(flags | Qt.WindowStaysOnTopHint)
+            else:
+                self.render.setWindowFlags(flags & ~Qt.WindowStaysOnTopHint)
+            self.render.show()
+            
+        bus.request_render_on_top_toggle.connect(toggle_on_top)
+
+        # --- NOVA CONEXÃO DO CHROMA KEY ---
+        bus.request_chroma_key_update.connect(self.render.apply_chroma_key)
+        
+        # 2. Atalhos Dinâmicos dos Efeitos
+        bus.request_register_effect_hotkey.connect(self.hotkeys.register_custom_effect)
+        bus.request_remove_effect_hotkey.connect(self.hotkeys.remove_custom_hotkey)
+        
+        # 3. Status e Controle da Música de Fundo
+        from PySide6.QtMultimedia import QMediaPlayer, QMediaMetaData
+        
+        if hasattr(self.bg_manager, 'bg_window') and hasattr(self.bg_manager.bg_window, 'audio'):
+            player = self.bg_manager.bg_window.audio.player
+            
+            # Pedidos da UI para o Player
+            bus.request_bg_player_set_position.connect(player.setPosition)
+            bus.request_music_play_pause.connect(
+                lambda: player.pause() if player.playbackState() == QMediaPlayer.PlayingState else player.play()
+            )
+            
+            # Respostas do Player para a UI
+            player.positionChanged.connect(bus.bg_player_position_updated.emit)
+            player.durationChanged.connect(bus.bg_player_duration_updated.emit)
+            player.playbackStateChanged.connect(
+                lambda state: bus.bg_player_state_changed.emit(state == QMediaPlayer.PlayingState)
+            )
+            player.metaDataChanged.connect(
+                lambda: bus.bg_player_metadata_updated.emit(
+                    player.metaData().value(QMediaMetaData.Key.Title) or ""
+                )
+            )
 
     def setup_tray(self):
         self.tray_icon = QSystemTrayIcon(QIcon("assets/PAINEL-DE-CONTROLE_ICON.ico"), QApplication.instance())

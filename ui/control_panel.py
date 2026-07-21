@@ -10,8 +10,8 @@ from ui.tabs.background_tab import BackgroundTab
 from ui.tabs.help_tab import HelpTab
 
 class ControlPanel(QWidget):
-    # 1. Assinatura limpa, exigindo apenas 6 parâmetros agora
-    def __init__(self, config_manager, audio, render, hotkeys, anim_logic, bg_window):
+
+    def __init__(self, config_manager):
         super().__init__(None)
         
         self.setWindowTitle("PixelTuber - Painel de Controle")
@@ -22,34 +22,21 @@ class ControlPanel(QWidget):
             Qt.WindowTitleHint | Qt.WindowCloseButtonHint | Qt.WindowMinMaxButtonsHint
         )
         
-        # 2. Remoção das variáveis antigas (self.effects, self.overlay, self.bg_manager)
         self.config_manager = config_manager
-        self.audio = audio
-        self.render = render
-        self.hotkeys = hotkeys
-        self.anim_logic = anim_logic
-        self.bg_window = bg_window
-        
         self.resize(600, 900)
 
         main_layout = QVBoxLayout(self)
-        self.tabs = QTabWidget()
-
+        
         # --- SISTEMA DE ABAS ---
         self.tabs = QTabWidget()
         
-        # Instanciando abas
-        self.avatar_tab = AvatarTab(
-            config_manager=self.config_manager, render=self.render, 
-            audio=self.audio, hotkeys=self.hotkeys, anim_manager=self.anim_logic
-        )
-        self.settings_tab = SettingsTab(self.config_manager, self.render, self.hotkeys)
-        self.audio_tab = AudioTab(self.audio)
+        # Nenhuma aba recebe managers a partir de agora
+        self.avatar_tab = AvatarTab(self.config_manager)
+        self.settings_tab = SettingsTab(self.config_manager)
+        self.audio_tab = AudioTab(self.config_manager)
+        self.effects_tab = EffectsTab(self.config_manager)
+        self.background_tab = BackgroundTab(self.config_manager)
         self.help_tab = HelpTab()
-        
-        # Abas refatoradas não recebem mais os managers!
-        self.effects_tab = EffectsTab(self.config_manager, self.hotkeys)
-        self.background_tab = BackgroundTab(self.config_manager, self.bg_window)
         
         self.tabs.addTab(self.avatar_tab, "👤 Avatar & Extras")
         self.tabs.addTab(self.settings_tab, "⚙️ Geral")

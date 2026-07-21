@@ -17,9 +17,8 @@ class EffectCreator(QDialog):
     effect_created = Signal(dict)
     test_requested = Signal(dict)
 
-    def __init__(self, hotkey_manager, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.hotkeys = hotkey_manager
         self.editing_id = None
         self.temp_hotkey = ""
         self.icon_path = "" 

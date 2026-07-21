@@ -1,3 +1,4 @@
+# ui/tabs/avatar_tab.py
 import os
 import uuid
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, 
@@ -6,15 +7,13 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlide
                              QComboBox, QInputDialog, QMessageBox)
 from PySide6.QtCore import Qt
 from ui.styles.theme import Theme
+from core.event_bus import EventBus
 
 class AvatarTab(QWidget):
-    def __init__(self, config_manager, render, audio, hotkeys, anim_manager):
+    def __init__(self, config_manager):
         super().__init__()
         self.cfg = config_manager
-        self.render = render
-        self.audio = audio 
-        self.hotkeys = hotkeys
-        self.anim_manager = anim_manager 
+        self.bus = EventBus.instance()
         self.profile = config_manager.data
         self.path_labels = {}
 
@@ -34,7 +33,6 @@ class AvatarTab(QWidget):
         container = QWidget()
         self.main_layout = QVBoxLayout(container)
         
-        # Constrói as seções da interface organizadamente
         self._setup_window_controls()
         self._setup_wardrobe_section()
         self._setup_sprites_section()
@@ -45,6 +43,16 @@ class AvatarTab(QWidget):
         
         self.refresh_sprite_paths()
         self.refresh_extras_ui()
+        self.connect_bus_signals()
+
+    def connect_bus_signals(self):
+        """Escuta o retorno do AudioManager para manter o botão de Mudo sincronizado"""
+        self.bus.audio_mute_updated.connect(self._sync_mute_button)
+
+    def _sync_mute_button(self, is_muted):
+        self.btn_mute.blockSignals(True)
+        self.btn_mute.setChecked(is_muted)
+        self.btn_mute.blockSignals(False)
 
     # ================================================================
     # MONTAGEM DA INTERFACE (UI)
@@ -179,30 +187,16 @@ class AvatarTab(QWidget):
     # ================================================================
 
     def update_ui(self):
-        """Atualiza a aba com base no estado atual do motor (Áudio/Render)."""
-        # Sincroniza o botão de mute
-        if self.btn_mute.isChecked() != self.audio.muted:
-            self.btn_mute.blockSignals(True)
-            self.btn_mute.setChecked(self.audio.muted)
-            self.btn_mute.blockSignals(False)
-
-        current_state = getattr(self.render, "current_state", None)
         current_set = self.combo_wardrobe.currentText()
         is_editing_active = (current_set == self.profile["animations"].get("main_set"))
         
-        # Destaca a label do sprite que está falando agora
         for key, lbl in self.path_labels.items():
             path = self.profile["animations"]["sets"].get(current_set, {}).get(key, "")
             if not path:
                 lbl.setStyleSheet(f"color: {Theme.TEXT_MUTED};")
-                continue
-                
-            if is_editing_active and key == current_state:
-                lbl.setStyleSheet(f"color: {Theme.ACCENT}; font-weight: bold;")
             else:
                 lbl.setStyleSheet(f"color: {Theme.ACCENT_GREEN}; font-weight: normal;")
                 
-        # Atualiza o botão Equipar
         if is_editing_active:
             self.btn_equip.setText("✅ EQUIPADO")
             self.btn_equip.setEnabled(False)
@@ -230,7 +224,7 @@ class AvatarTab(QWidget):
     def update_scale(self, v):
         self.lbl_scale_pct.setText(f"{v}%")
         self.profile.setdefault("render", {})["scale"] = v / 100.0
-        self.render.update_geometry()
+        self.bus.request_geometry_update.emit()
         self.cfg.save()
 
     def toggle_lock(self, checked):
@@ -238,66 +232,102 @@ class AvatarTab(QWidget):
         self.cfg.save()
 
     def toggle_visibility(self, checked):
-        self.render.setVisible(not checked)
+        self.bus.request_avatar_visibility_toggle.emit(not checked)
 
     def toggle_minimize_render(self):
-        if self.render.isMinimized(): 
-            self.render.showNormal()
-        else: 
-            self.render.showMinimized()
+        self.bus.request_avatar_minimize_toggle.emit()
 
     def toggle_mute_direct(self, checked):
-        self.audio.muted = checked
+        self.bus.request_mic_mute_toggle.emit(checked)
 
     # ================================================================
-    # COMUNICAÇÃO COM O ANIMATION MANAGER (DESACOPLADO)
+    # LÓGICA DO AVATAR E SKINS (DESACOPLADA)
     # ================================================================
 
     def equip_selected_set(self):
         selected = self.combo_wardrobe.currentText()
         if selected:
-            self.anim_manager.set_active_set(selected)
+            self.bus.request_animation_set_change.emit(selected)
             self.update_ui()
 
     def create_new_set(self):
         name, ok = QInputDialog.getText(self, "Nova Skin", "Nome do novo Avatar/Skin:")
         if ok and name and name.strip():
-            if self.anim_manager.create_new_set(name.strip()):
-                self.combo_wardrobe.addItem(name.strip())
-                self.combo_wardrobe.setCurrentText(name.strip())
+            name = name.strip()
+            sets = self.cfg.get_all_sets()
+            if name not in sets:
+                sets[name] = {"mute": "", "low": "", "med": "", "high": "", "very_high": ""}
+                self.cfg.set_animation_config("sets", sets)
+                self.combo_wardrobe.addItem(name)
+                self.combo_wardrobe.setCurrentText(name)
 
     def import_folder_set(self):
         folder = QFileDialog.getExistingDirectory(self, "Selecionar Pasta do Avatar")
         if not folder: return
-        new_set_name = self.anim_manager.import_folder_set(folder)
-        self.combo_wardrobe.addItem(new_set_name)
-        self.combo_wardrobe.setCurrentText(new_set_name)
+        sets = self.cfg.get_all_sets()
+        set_name = os.path.basename(folder)
+        
+        if set_name in sets:
+            set_name += f"_{uuid.uuid4().hex[:4]}"
+        
+        new_set = {"mute": "", "low": "", "med": "", "high": "", "very_high": ""}
+        files = [f for f in os.listdir(folder) if f.lower().endswith(('.gif', '.png', '.jpg', '.jpeg', '.webp'))]
+        
+        for f in files:
+            fname = f.lower()
+            path = os.path.join(folder, f)
+            if "mute" in fname or "nf" in fname or "fechad" in fname:
+                new_set["mute"] = path
+            elif "low" in fname or "- f" in fname or "fala" in fname or "abert" in fname:
+                new_set["low"] = path
+        
+        if not new_set["mute"] and files:
+            new_set["mute"] = os.path.join(folder, files[0])
+            
+        sets[set_name] = new_set
+        self.cfg.set_animation_config("sets", sets)
+        
+        self.combo_wardrobe.addItem(set_name)
+        self.combo_wardrobe.setCurrentText(set_name)
         self.equip_selected_set()
-        QMessageBox.information(self, "Sucesso", f"Avatar '{new_set_name}' importado!")
+        QMessageBox.information(self, "Sucesso", f"Avatar '{set_name}' importado!")
 
     def delete_selected_set(self):
         selected = self.combo_wardrobe.currentText()
+        sets = self.cfg.get_all_sets()
+        
+        if selected == "default" or len(sets) <= 1:
+            QMessageBox.warning(self, "Aviso", "Você não pode deletar a skin principal ou única.")
+            return
+            
         ans = QMessageBox.question(self, "Confirmação", f"Deletar a skin '{selected}'?")
         if ans == QMessageBox.Yes:
-            if self.anim_manager.delete_set(selected):
-                self.combo_wardrobe.removeItem(self.combo_wardrobe.findText(selected))
-                self.equip_selected_set()
-            else:
-                QMessageBox.warning(self, "Aviso", "Você não pode deletar a skin principal ou única.")
+            del sets[selected]
+            self.cfg.set_animation_config("sets", sets)
+            
+            if self.cfg.get_active_set() == selected:
+                self.bus.request_animation_set_change.emit("default")
+                
+            self.combo_wardrobe.removeItem(self.combo_wardrobe.findText(selected))
+            self.equip_selected_set()
 
     def clear_gif(self, state):
         current_set = self.combo_wardrobe.currentText()
         if current_set:
-            self.anim_manager.update_sprite(current_set, state, "")
+            self.cfg.update_sprite_in_set(current_set, state, "")
             self.refresh_sprite_paths()
+            if current_set == self.cfg.get_active_set():
+                 self.bus.request_animation_set_change.emit(current_set)
 
     def set_gif(self, state):
         current_set = self.combo_wardrobe.currentText()
         if not current_set: return
         p, _ = QFileDialog.getOpenFileName(self, "Escolher Sprite", "", "Imagens (*.gif *.png)")
         if p:
-            self.anim_manager.update_sprite(current_set, state, p)
+            self.cfg.update_sprite_in_set(current_set, state, p)
             self.refresh_sprite_paths()
+            if current_set == self.cfg.get_active_set():
+                 self.bus.request_animation_set_change.emit(current_set)
 
     # ================================================================
     # ACESSÓRIOS (LAYERS)
@@ -375,7 +405,7 @@ class AvatarTab(QWidget):
 
     def update_extra_val(self, l_id, key, val):
         self.cfg.data["aux_layers"][l_id][key] = val
-        self.render.update_geometry()
+        self.bus.request_geometry_update.emit()
         self.cfg.save()
 
     def add_layer(self):
@@ -387,17 +417,17 @@ class AvatarTab(QWidget):
                 "rotation": 0, "locked": False, "visible": True, "z_index": 1
             }
             self.refresh_extras_ui()
-            self.render.update_geometry()
+            self.bus.request_geometry_update.emit()
             self.cfg.save()
 
     def delete_layer(self, l_id):
         if l_id in self.cfg.data["aux_layers"]:
             del self.cfg.data["aux_layers"][l_id]
             self.refresh_extras_ui()
-            self.render.update_geometry()
+            self.bus.request_geometry_update.emit()
             self.cfg.save()
 
     def update_hotkey(self, l_id, key_str):
         self.cfg.data["aux_layers"][l_id]["hotkey"] = key_str.strip().lower()
-        self.hotkeys.setup_defaults()
         self.cfg.save()
+        self.bus.request_hotkeys_reload.emit()

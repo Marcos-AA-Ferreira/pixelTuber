@@ -49,4 +49,45 @@ class EventBus(QObject):
     bg_visual_changed = Signal(dict)
     bg_music_changed = Signal(str)
     
-    # (Mantenha o restante dos seus sinais aqui...)
+    # --- UI -> Manager (A UI pede para o Manager mudar algo) ---
+    request_audio_gain_change = Signal(float)
+    request_audio_noise_gate_change = Signal(float)
+    request_audio_hold_time_change = Signal(int)
+    request_audio_ducking_toggle = Signal(bool)
+    request_audio_threshold_change = Signal(str, float)
+    request_visualizer_style_change = Signal(str)
+    request_audio_device_change = Signal(int)
+    request_refresh_devices = Signal()
+
+    # --- Manager -> UI (O Manager avisa a UI que algo atualizou) ---
+    audio_volume_updated = Signal(float)
+    audio_processed_updated = Signal(float, list)
+    audio_devices_updated = Signal(list)
+
+    # --- UI -> Manager (Comandos do Avatar) ---
+    request_geometry_update = Signal()
+    request_animation_set_change = Signal(str)
+
+    # --- Novos comandos de Controle e UI ---
+    request_avatar_visibility_toggle = Signal(bool)
+    request_avatar_minimize_toggle = Signal()
+    request_mic_mute_toggle = Signal(bool)
+    request_hotkeys_reload = Signal()
+    
+    # --- Estado (Manager avisando a UI) ---
+    audio_mute_updated = Signal(bool)
+
+    # --- UI -> Manager (Configurações Gerais e Atalhos) ---
+    request_render_on_top_toggle = Signal(bool)
+    request_chroma_key_update = Signal()
+    request_register_effect_hotkey = Signal(str, str, dict) # eid, hotkey, data
+    request_remove_effect_hotkey = Signal(str)              # eid
+    
+    # --- UI -> Manager (Controle de Tempo da Música) ---
+    request_bg_player_set_position = Signal(int)
+    
+    # --- Manager -> UI (Status do Player de Fundo) ---
+    bg_player_position_updated = Signal(int)
+    bg_player_duration_updated = Signal(int)
+    bg_player_metadata_updated = Signal(str)
+    bg_player_state_changed = Signal(bool) # Avisa se está tocando ou pausado

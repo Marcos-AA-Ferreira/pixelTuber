@@ -5,14 +5,12 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel,
                              QFrame, QCheckBox, QGroupBox, QScrollArea, QStyle, QStyleOptionSlider, QSlider)
 from PySide6.QtCore import Qt, QTime
 from PySide6.QtGui import QPixmap
-from PySide6.QtMultimedia import QMediaMetaData, QMediaPlayer
 
 from ui.tabs.background_tab_component.music_toast import MusicToast
 from ui.widgets.labeled_slider import LabeledSlider
 from ui.styles.theme import Theme
 
 from core.utils import validate_path
-from core.background_manager import BackgroundManager
 from core.event_bus import EventBus
 
 class ClickableSlider(QSlider):
@@ -29,19 +27,12 @@ class ClickableSlider(QSlider):
 
 
 class BackgroundTab(QWidget):
-    def __init__(self, config_manager, bg_window):
+    def __init__(self, config_manager):
         super().__init__()
         self.bus = EventBus.instance()
-        
-        # 1. Recebemos os dados puramente de UI e Configuração
         self.cfg = config_manager
-        self.bg_window = bg_window
-        
-        # 2. Instancia a Notificação Flutuante (O erro original era aqui)
-        self.toast = MusicToast(self.bg_window)
-        
+        self.toast = MusicToast(None)
         self.setStyleSheet(Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX + Theme.BUTTON_BASE)
-        
         self.init_ui()
         self.connect_events_and_signals()
 
@@ -175,8 +166,6 @@ class BackgroundTab(QWidget):
         layout_principal.addWidget(scroll)
 
     def connect_events_and_signals(self):
-        """Versão unificada: Todos os binds repassam para o EventBus Global."""
-        
         # Controles Visuais
         self.btn_sel.clicked.connect(self._on_choose_bg_clicked)
         self.btn_rem.clicked.connect(self.bus.request_bg_image_remove.emit)
@@ -201,19 +190,19 @@ class BackgroundTab(QWidget):
         self.toast.btn_play.clicked.connect(self.toggle_play_pause)
         self.toast.btn_next.clicked.connect(self.bus.request_music_next.emit)
 
-        # Sinais Reversos (Escutando o EventBus em vez do Manager)
+        # Sinais Reversos do Manager
         self.bus.bg_visual_changed.connect(self._on_visual_changed)
         self.bus.bg_music_changed.connect(self._on_music_changed)
         
-        # Conexões Nativas do Player (Essas permanecem locais pois são puramente de UI interativa)
-        if self.bg_window and hasattr(self.bg_window, 'audio') and self.bg_window.audio.player:
-            player = self.bg_window.audio.player
-            player.positionChanged.connect(self._on_player_position_changed)
-            player.durationChanged.connect(lambda duration: self.slider_progress.setRange(0, duration))
-            player.metaDataChanged.connect(self._lazy_metadata_update)
-            self.slider_progress.sliderMoved.connect(player.setPosition)
+        # Escuta o estado do Player de fundo
+        self.bus.bg_player_position_updated.connect(self._on_player_position_changed)
+        self.bus.bg_player_duration_updated.connect(lambda duration: self.slider_progress.setRange(0, duration))
+        self.bus.bg_player_metadata_updated.connect(self._lazy_metadata_update)
+        self.bus.bg_player_state_changed.connect(self._on_player_state_changed)
+        
+        # Envia a navegação na barra de tempo pro player
+        self.slider_progress.sliderMoved.connect(self.bus.request_bg_player_set_position.emit)
 
-    # --- SLOTS DE DISPACHO ---
     def _dispatch_visual_update(self):
         self.bus.request_bg_visual_update.emit({
             "bg_opacity": self.slider_alpha.value(),
@@ -228,6 +217,69 @@ class BackgroundTab(QWidget):
             "loop": self.check_loop.isChecked()
         })
 
+    def _on_visual_changed(self, bg_config):
+        path = bg_config.get("path", "")
+        if validate_path(path):
+            pix = QPixmap(path)
+            self.preview_label.setPixmap(pix.scaled(self.preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            self.preview_label.setText("Sem Fundo")
+            self.preview_label.setPixmap(QPixmap())
+
+    def _on_music_changed(self, path):
+        if not path:
+            self.lbl_music_info.setText("Nenhuma trilha")
+            self.toast.hide_toast()
+            return
+        title = os.path.basename(path).replace(".wav", "").replace(".mp3", "")
+        self.lbl_music_info.setText(f"🎶 {title}")
+        self.trigger_toast_notification()
+
+    def _lazy_metadata_update(self, title):
+        if title:
+            self.lbl_music_info.setText(f"🎶 {title}")
+            self.toast.lbl_title.setText(title[:25] + "..." if len(title) > 25 else title)
+
+    def toggle_play_pause(self):
+        self.bus.request_music_play_pause.emit()
+
+    def _on_player_state_changed(self, is_playing):
+        char = "⏸️" if is_playing else "▶️"
+        self.toast.btn_play.setText(char)
+        self.btn_play_pause.setText(char)
+
+    def _on_player_position_changed(self, pos):
+        if not self.slider_progress.isSliderDown():
+            self.slider_progress.setValue(pos)
+        
+        duration = self.slider_progress.maximum()
+        curr = QTime(0, 0).addMSecs(pos).toString("mm:ss")
+        total = QTime(0, 0).addMSecs(duration).toString("mm:ss")
+        self.lbl_time.setText(f"{curr} / {total}")
+
+    def trigger_toast_notification(self):
+        current_path = self.cfg.data.get("bg_music_path", "")
+        if not current_path: return
+        title = os.path.basename(current_path).replace(".wav", "").replace(".mp3", "")
+        
+        pixmap = None
+        folder = os.path.dirname(current_path)
+        for ext in ['jpg', 'png', 'jpeg']:
+            for name in ['cover', 'folder', 'front', 'art']:
+                img_path = os.path.join(folder, f"{name}.{ext}")
+                if os.path.exists(img_path):
+                    pixmap = QPixmap(img_path)
+                    break
+            if pixmap: break
+                    
+        pos_map = {
+            "Canto Inferior Direito": "bottom_right", "Canto Superior Direito": "top_right",
+            "Canto Inferior Esquerdo": "bottom_left", "Canto Superior Esquerdo": "top_left"
+        }
+        target_pos = pos_map.get(self.pos_combo.currentText(), "bottom_right")
+        self.toast.update_info(title=title, artist="Ficheiro Local", cover_pixmap=pixmap)
+        self.toast.show_toast(position_name=target_pos)
+
     def _on_choose_bg_clicked(self):
         p, _ = QFileDialog.getOpenFileName(self, "Escolher Fundo", "", "Mídia (*.png *.jpg *.gif)")
         if p: self.bus.request_bg_image_change.emit(p)
@@ -241,88 +293,5 @@ class BackgroundTab(QWidget):
         self.cfg.save()
         self.trigger_toast_notification()
 
-    # --- SLOTS DE ATUALIZAÇÃO DA UI (MGR -> UI) ---
-
-    def _on_visual_changed(self, bg_config):
-        """Atualiza estritamente os componentes visuais locais baseados no Model."""
-        path = bg_config.get("path", "")
-        if validate_path(path):
-            pix = QPixmap(path)
-            self.preview_label.setPixmap(pix.scaled(self.preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        else:
-            self.preview_label.setText("Sem Fundo")
-            self.preview_label.setPixmap(QPixmap())
-
-    def _on_music_changed(self, path):
-        """Reage à mudança de música atualizando textos e notificações."""
-        if not path:
-            self.lbl_music_info.setText("Nenhuma trilha")
-            self.toast.hide_toast()
-            return
-            
-        title = os.path.basename(path).replace(".wav", "").replace(".mp3", "")
-        self.lbl_music_info.setText(f"🎶 {title}")
-        self.trigger_toast_notification()
-
-    def _on_player_position_changed(self, pos):
-        if not self.slider_progress.isSliderDown():
-            self.slider_progress.setValue(pos)
-        
-        duration = self.bg_window.audio.player.duration() if self.bg_window and hasattr(self.bg_window, 'audio') else 0
-        curr = QTime(0, 0).addMSecs(pos).toString("mm:ss")
-        total = QTime(0, 0).addMSecs(duration).toString("mm:ss")
-        self.lbl_time.setText(f"{curr} / {total}")
-
-    def _lazy_metadata_update(self):
-        if self.bg_window and hasattr(self.bg_window, 'audio') and self.bg_window.audio.player:
-            meta = self.bg_window.audio.player.metaData()
-            title = meta.value(QMediaMetaData.Key.Title)
-            if title:
-                self.lbl_music_info.setText(f"🎶 {title}")
-                self.toast.lbl_title.setText(title[:25] + "..." if len(title) > 25 else title)
-
-    # --- INTERAÇÕES DIRETAS DO PLAYER ---
-
-    def toggle_play_pause(self):
-        if not (self.bg_window and hasattr(self.bg_window, 'audio') and self.bg_window.audio.player): return
-        player = self.bg_window.audio.player
-        
-        if player.playbackState() == QMediaPlayer.PlayingState:
-            player.pause()
-            char = "▶️"
-        else:
-            player.play()
-            char = "⏸️"
-            
-        self.toast.btn_play.setText(char)
-        self.btn_play_pause.setText(char)
-
-    def trigger_toast_notification(self):
-        # CORREÇÃO: Lemos o caminho diretamente da fonte de verdade (ConfigManager)
-        current_path = self.cfg.data.get("bg_music_path", "")
-        if not current_path: return
-        
-        title = os.path.basename(current_path).replace(".wav", "").replace(".mp3", "")
-        
-        # Procura capa na pasta
-        pixmap = None
-        folder = os.path.dirname(current_path)
-        for ext in ['jpg', 'png', 'jpeg']:
-            for name in ['cover', 'folder', 'front', 'art']:
-                img_path = os.path.join(folder, f"{name}.{ext}")
-                if os.path.exists(img_path):
-                    pixmap = QPixmap(img_path)
-                    break
-        
-        pos_map = {
-            "Canto Inferior Direito": "bottom_right", "Canto Superior Direito": "top_right",
-            "Canto Inferior Esquerdo": "bottom_left", "Canto Superior Esquerdo": "top_left"
-        }
-        target_pos = pos_map.get(self.pos_combo.currentText(), "bottom_right")
-        
-        self.toast.update_info(title=title, artist="Ficheiro Local", cover_pixmap=pixmap)
-        self.toast.show_toast(position_name=target_pos)
-
     def select_background_image(self):
-        """Mapeamento externo legado."""
         self._on_choose_bg_clicked()

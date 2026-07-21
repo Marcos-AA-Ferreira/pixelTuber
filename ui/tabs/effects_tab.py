@@ -8,19 +8,15 @@ from .effects_tab_component.effect_card import EffectCard
 from core.event_bus import EventBus
 
 class EffectsTab(QWidget):
-    def __init__(self, config_manager, hotkey_manager): 
+    def __init__(self, config_manager): # Limpo!
         super().__init__()
         self.bus = EventBus.instance()
         self.cfg = config_manager
-        self.hotkeys = hotkey_manager
         
-        # CORREÇÃO: Em vez de acessar self.profile, acesse através da configuração
-        # Ajuste o caminho abaixo conforme a estrutura do seu JSON de config
         self.profile = self.cfg.data.get("profile", {})
-        
         if "custom_effects" not in self.profile:
             self.profile["custom_effects"] = {}
-
+            
         self.setStyleSheet(Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX)
         self.init_ui()
 
@@ -90,8 +86,7 @@ class EffectsTab(QWidget):
         self.refresh_list()
 
     def open_creator(self, eid=None, data=None):
-        """Instancia e abre o QDialog (Janela Modal) para criar/editar efeitos."""
-        dialog = EffectCreator(self.hotkeys, self)
+        dialog = EffectCreator(self)
         
         # Se for edição, carrega os dados no modal
         if eid and data:
@@ -124,24 +119,6 @@ class EffectsTab(QWidget):
         }
         self.bus.request_play_effect.emit(payload)
 
-    def add_new_effect(self, data):
-        eid = data.pop("id")
-        data["type"] = self._determine_effect_type(data)
-        
-        if eid in self.profile["custom_effects"]:
-            self.hotkeys.remove_custom_hotkey(eid)
-
-        self.profile["custom_effects"][eid] = data
-        
-        if data.get("hotkey"):
-            self.hotkeys.register_custom_effect(eid, data["hotkey"], data)
-        
-        self.cfg.save() 
-        self.refresh_list()
-        
-        tab_idx = {"visual": 0, "audio": 1, "combo": 2}.get(data["type"], 0)
-        self.tabs.setCurrentIndex(tab_idx)
-
     def _determine_effect_type(self, data):
         has_v = bool(data.get("visual"))
         has_a = bool(data.get("audio"))
@@ -172,9 +149,26 @@ class EffectsTab(QWidget):
             self.grids[t].addWidget(card, row, col)
             counts[t] += 1
 
+    def add_new_effect(self, data):
+        eid = data.pop("id")
+        data["type"] = self._determine_effect_type(data)
+        
+        if eid in self.profile["custom_effects"]:
+            self.bus.request_remove_effect_hotkey.emit(eid) # EventBus salva o dia
+            
+        self.profile["custom_effects"][eid] = data
+
+        if data.get("hotkey"):
+            self.bus.request_register_effect_hotkey.emit(eid, data["hotkey"], data) # Delega via Bus
+            
+        self.cfg.save()
+        self.refresh_list()
+        tab_idx = {"visual": 0, "audio": 1, "combo": 2}.get(data["type"], 0)
+        self.tabs.setCurrentIndex(tab_idx)
+
     def remove_effect(self, eid):
         if QMessageBox.question(self, "Confirmar", "Deseja excluir este efeito?") == QMessageBox.Yes:
-            self.hotkeys.remove_custom_hotkey(eid)
+            self.bus.request_remove_effect_hotkey.emit(eid) # Remove atalho pelo Bus
             if eid in self.profile["custom_effects"]:
                 del self.profile["custom_effects"][eid]
                 self.cfg.save()

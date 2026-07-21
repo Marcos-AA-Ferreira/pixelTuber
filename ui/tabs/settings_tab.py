@@ -1,19 +1,18 @@
+# ui/tabs/settings_tab.py
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                              QLabel, QLineEdit, QFrame, QCheckBox, QGroupBox, 
                              QScrollArea, QComboBox)
 from PySide6.QtCore import Qt
 from ui.styles.theme import Theme
+from core.event_bus import EventBus
 
 class SettingsTab(QWidget):
-    def __init__(self, config_manager, render, hotkeys):
+    def __init__(self, config_manager):
         super().__init__()
         self.cfg = config_manager
-        self.render = render
-        self.hotkeys = hotkeys
-
-        self.setStyleSheet(Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX + 
-                           Theme.BUTTON_BASE)
-
+        self.bus = EventBus.instance()
+        self.setStyleSheet(Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX + Theme.BUTTON_BASE)
+        
         layout_principal = QVBoxLayout(self)
         
         scroll = QScrollArea()
@@ -125,13 +124,6 @@ class SettingsTab(QWidget):
         row.addWidget(edit)
         return row
 
-    def update_hk_config(self, key, value):
-        if "hotkeys" not in self.cfg.data:
-            self.cfg.data["hotkeys"] = {}
-        
-        self.cfg.data["hotkeys"][key] = value.strip().lower()
-        self.hotkeys.setup_defaults()
-
     def update_fps(self, val):
         if "system" not in self.cfg.data: self.cfg.data["system"] = {}
         self.cfg.data["system"]["fps_limit"] = val
@@ -140,22 +132,22 @@ class SettingsTab(QWidget):
         val = self.chroma_combo.itemData(idx)
         if "render" not in self.cfg.data: self.cfg.data["render"] = {}
         self.cfg.data["render"]["chroma_key"] = val
-        self.render.apply_chroma_key()
+        self.bus.request_chroma_key_update.emit() # Desacoplado via EventBus!
 
     def update_tray(self, state):
         if "system" not in self.cfg.data: self.cfg.data["system"] = {}
         self.cfg.data["system"]["minimize_to_tray"] = state
 
+    def update_hk_config(self, key, value):
+        if "hotkeys" not in self.cfg.data:
+            self.cfg.data["hotkeys"] = {}
+        self.cfg.data["hotkeys"][key] = value.strip().lower()
+        self.bus.request_hotkeys_reload.emit() 
+
     def update_on_top(self, state):
-        flags = self.render.windowFlags()
-        if state:
-            self.render.setWindowFlags(flags | Qt.WindowStaysOnTopHint)
-        else:
-            self.render.setWindowFlags(flags & ~Qt.WindowStaysOnTopHint)
-        
-        self.render.show()
-        
-        if "render" not in self.cfg.data: self.cfg.data["render"] = {}
+        self.bus.request_render_on_top_toggle.emit(state)
+        if "render" not in self.cfg.data:
+            self.cfg.data["render"] = {}
         self.cfg.data["render"]["always_on_top"] = state
 
     def save_all(self):
