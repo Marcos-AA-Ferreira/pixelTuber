@@ -8,7 +8,7 @@ from PySide6.QtGui import QPixmap
 
 from ui.tabs.background_tab_component.music_toast import MusicToast
 from ui.widgets.labeled_slider import LabeledSlider
-from ui.styles.theme import Theme
+from ui.utils.form_builder import FormBuilder
 
 from core.utils import validate_path
 from core.event_bus import EventBus
@@ -32,7 +32,6 @@ class BackgroundTab(QWidget):
         self.bus = EventBus.instance()
         self.cfg = config_manager
         self.toast = MusicToast(None)
-        self.setStyleSheet(Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX + Theme.BUTTON_BASE)
         self.init_ui()
         self.connect_events_and_signals()
 
@@ -56,7 +55,6 @@ class BackgroundTab(QWidget):
         self.preview_label = QLabel("Sem Fundo")
         self.preview_label.setAlignment(Qt.AlignCenter)
         self.preview_label.setFixedSize(220, 110)
-        self.preview_label.setStyleSheet(Theme.PREVIEW_BOX)
         self.preview_label.setScaledContents(True)
         
         preview_container = QHBoxLayout()
@@ -67,9 +65,7 @@ class BackgroundTab(QWidget):
 
         bg_btn_row = QHBoxLayout()
         self.btn_sel = QPushButton("🖼️ ESCOLHER IMAGEM DE FUNDO")
-        self.btn_sel.setStyleSheet(Theme.BUTTON_PRIMARY)
         self.btn_rem = QPushButton("🗑️")
-        self.btn_rem.setStyleSheet(Theme.BUTTON_DANGER)
         self.btn_rem.setFixedWidth(40)
         
         bg_btn_row.addWidget(self.btn_sel)
@@ -79,18 +75,25 @@ class BackgroundTab(QWidget):
         render_frame = QFrame()
         render_frame.setStyleSheet("QFrame { border-top: 1px solid #30363d; margin-top: 10px; padding-top: 10px; }")
         render_lay = QVBoxLayout(render_frame)
+        builder_render = FormBuilder(render_lay) # Construtor Injetado
         
-        render_lay.addWidget(QLabel("Profundidade da Camada:"))
-        self.combo_layer = QComboBox()
-        self.combo_layer.addItems(["⬇️ Fundo (Atrás do Avatar)", "🟦 Normal", "⬆️ Sobrepor (Frente do Avatar)"])
-        self.combo_layer.setCurrentIndex(self.cfg.data.get("bg_layer_level", 0))
-        render_lay.addWidget(self.combo_layer)
+        layer_options = ["⬇️ Fundo (Atrás do Avatar)", "🟦 Normal", "⬆️ Sobrepor (Frente do Avatar)"]
+        current_layer_idx = self.cfg.data.get("bg_layer_level", 0)
+        
+        self.combo_layer = builder_render.add_combobox(
+            label_text="Profundidade da Camada:",
+            items=layer_options,
+            current_text=layer_options[current_layer_idx] if current_layer_idx < len(layer_options) else layer_options[0],
+            callback=lambda _: self._dispatch_visual_update()
+        )
 
         self.slider_alpha = LabeledSlider("Nível de Opacidade:", min_val=0, max_val=100, default_val=self.cfg.data.get("bg_opacity", 100), value_format="{v}%")
-        render_lay.addWidget(self.slider_alpha)
+        self.slider_alpha.valueChanged.connect(lambda _: self._dispatch_visual_update())
+        builder_render.add_custom_widget(self.slider_alpha)
 
         self.slider_blur = LabeledSlider("Intensidade do Desfoque:", min_val=0, max_val=50, default_val=self.cfg.data.get("bg_blur", 0), value_format="{v} px")
-        render_lay.addWidget(self.slider_blur)
+        self.slider_blur.valueChanged.connect(lambda _: self._dispatch_visual_update())
+        builder_render.add_custom_widget(self.slider_blur)
         
         bg_layout.addWidget(render_frame)
         layout.addWidget(bg_group)
@@ -100,27 +103,24 @@ class BackgroundTab(QWidget):
         # ==========================================
         audio_group = QGroupBox("🎵 TRILHA SONORA E NOTIFICAÇÃO")
         audio_layout = QVBoxLayout(audio_group)
+        builder_audio = FormBuilder(audio_layout) # Construtor Injetado
         
-        pos_row = QHBoxLayout()
-        pos_row.addWidget(QLabel("Posição da Notificação (Toast):"))
-        self.pos_combo = QComboBox()
-        self.pos_combo.addItems(["Canto Inferior Direito", "Canto Superior Direito", "Canto Inferior Esquerdo", "Canto Superior Esquerdo"])
-        self.pos_combo.setCurrentText(self.cfg.data.get("system", {}).get("toast_position", "Canto Inferior Direito"))
-        pos_row.addWidget(self.pos_combo)
-        audio_layout.addLayout(pos_row)
+        self.pos_combo = builder_audio.add_combobox(
+            label_text="Posição da Notificação (Toast):",
+            items=["Canto Inferior Direito", "Canto Superior Direito", "Canto Inferior Esquerdo", "Canto Superior Esquerdo"],
+            current_text=self.cfg.data.get("system", {}).get("toast_position", "Canto Inferior Direito"),
+            callback=self._on_toast_position_changed
+        )
         
         self.lbl_music_info = QLabel("Nenhuma trilha")
-        self.lbl_music_info.setStyleSheet(Theme.MUSIC_INFO)
         self.lbl_music_info.setWordWrap(True)
-        audio_layout.addWidget(self.lbl_music_info)
+        builder_audio._add_row("Faixa Atual:", self.lbl_music_info)
 
         self.slider_progress = ClickableSlider(Qt.Horizontal)
-        self.slider_progress.setStyleSheet(Theme.PROGRESS_SLIDER)
-        audio_layout.addWidget(self.slider_progress)
+        builder_audio._add_row("Progresso:", self.slider_progress)
 
         self.lbl_time = QLabel("00:00 / 00:00")
         self.lbl_time.setAlignment(Qt.AlignRight)
-        self.lbl_time.setStyleSheet(Theme.TIME_LABEL)
         audio_layout.addWidget(self.lbl_time)
 
         music_nav_row = QHBoxLayout()
@@ -138,12 +138,11 @@ class BackgroundTab(QWidget):
         music_nav_row.addStretch()
         audio_layout.addLayout(music_nav_row)
 
-        music_ctrl_row = QHBoxLayout()
-        self.check_loop = QCheckBox("🔂 Loop Automático")
-        self.check_loop.setChecked(self.cfg.data.get("bg_music_loop", True))
-        music_ctrl_row.addWidget(self.check_loop)
-        music_ctrl_row.addStretch()
-        audio_layout.addLayout(music_ctrl_row)
+        self.check_loop = builder_audio.add_checkbox(
+            label_text="🔂 Loop Automático",
+            is_checked=self.cfg.data.get("bg_music_loop", True),
+            callback=lambda _: self._dispatch_audio_update()
+        )
 
         music_actions = QHBoxLayout()
         self.btn_music_sel = QPushButton("🎼 ESCOLHER MÚSICA")
@@ -154,8 +153,11 @@ class BackgroundTab(QWidget):
 
         vol_row = QHBoxLayout()
         self.slider_music_vol = LabeledSlider("Volume Principal:", min_val=0, max_val=100, default_val=self.cfg.data.get("bg_music_vol", 50), value_format="{v}%")
+        self.slider_music_vol.valueChanged.connect(lambda _: self._dispatch_audio_update())
+        
         self.check_mute = QCheckBox("🔇 Mudo")
         self.check_mute.setChecked(self.cfg.data.get("bg_music_muted", False))
+        self.check_mute.stateChanged.connect(lambda _: self._dispatch_audio_update())
         
         vol_row.addWidget(self.slider_music_vol, stretch=1)
         vol_row.addWidget(self.check_mute)
@@ -169,9 +171,6 @@ class BackgroundTab(QWidget):
         # Controles Visuais
         self.btn_sel.clicked.connect(self._on_choose_bg_clicked)
         self.btn_rem.clicked.connect(self.bus.request_bg_image_remove.emit)
-        self.combo_layer.currentIndexChanged.connect(self._dispatch_visual_update)
-        self.slider_alpha.valueChanged.connect(self._dispatch_visual_update)
-        self.slider_blur.valueChanged.connect(self._dispatch_visual_update)
         
         # Controles de Trilha Sonora
         self.btn_music_sel.clicked.connect(self._on_choose_music_clicked)
@@ -179,12 +178,6 @@ class BackgroundTab(QWidget):
         self.btn_next.clicked.connect(self.bus.request_music_next.emit)
         self.btn_prev.clicked.connect(self.bus.request_music_prev.emit)
         self.btn_play_pause.clicked.connect(self.toggle_play_pause)
-        
-        # Sliders e Áudio
-        self.slider_music_vol.valueChanged.connect(self._dispatch_audio_update)
-        self.check_mute.stateChanged.connect(self._dispatch_audio_update)
-        self.check_loop.stateChanged.connect(self._dispatch_audio_update)
-        self.pos_combo.currentTextChanged.connect(self._on_toast_position_changed)
         
         # Toast Reações
         self.toast.btn_play.clicked.connect(self.toggle_play_pause)

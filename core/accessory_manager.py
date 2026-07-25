@@ -3,9 +3,9 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QMovie, QPixmap
 from PySide6.QtWidgets import QGraphicsOpacityEffect
 
-from ui.styles.theme import Theme
 from core.utils import validate_path
 from ui.window.components.rw_rotatable_label import RotatableLabel
+from ui.styles.theme import ThemeManager
 
 class AccessoryManager:
     def __init__(self, parent_window, config_manager):
@@ -41,8 +41,8 @@ class AccessoryManager:
             lbl.show()
             
             # Dimensionamento do bounding-box
-            scale_factor = config.get("scale", 1.0)
-            base_size = int(Theme.BASE_AVATAR_SIZE * scale_factor)
+            scale_factor = config.get("scale", 2.0)
+            base_size = int(ThemeManager.BASE_AVATAR_SIZE * scale_factor)
             margin_size = int(base_size * 1.5) 
             
             if lbl.width() != margin_size:

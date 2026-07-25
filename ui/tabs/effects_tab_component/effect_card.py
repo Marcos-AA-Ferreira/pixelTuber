@@ -16,13 +16,7 @@ class EffectCard(QFrame):
 
     def init_ui(self):
         self.setFixedSize(115, 165)
-        # Estilo refinado para o card
-        self.setStyleSheet("""
-            QFrame { background-color: #0d1117; border: 1px solid #30363d; border-radius: 8px; }
-            QFrame:hover { border: 1px solid #58a6ff; }
-            QPushButton { border: none; background: transparent; }
-            QPushButton:hover { background: #1f242b; border-radius: 4px; }
-        """)
+        self.setObjectName("EffectCardBase") 
         
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 8)

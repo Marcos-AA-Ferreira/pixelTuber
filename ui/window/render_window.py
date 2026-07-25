@@ -1,9 +1,11 @@
+from collections import OrderedDict
+
 import os
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QMovie, QIcon, QPainter, QColor, QPainterPath
 from PySide6.QtCore import Qt, QPoint, Signal, QPointF
 
-from ui.styles.theme import Theme
+from ui.styles.theme import ThemeManager
 from ui.window.components.rw_rotatable_label import RotatableLabel
 from core.accessory_manager import AccessoryManager
 
@@ -79,9 +81,10 @@ class RenderWindow(QWidget):
     effectPositionChanged = Signal(int, int)
 
     def __init__(self, config_manager):
-        super().__init__(None) 
+        super().__init__(None)
         self.cfg = config_manager
-        self.movie_cache = {}
+        self.movie_cache = OrderedDict() 
+        self.max_cache_size = 10
         self.current_state = None 
         
         self.setWindowTitle("PixelTuber - Avatar")
@@ -125,7 +128,7 @@ class RenderWindow(QWidget):
 
     def update_geometry(self):
         scale = self.cfg.data["render"].get("scale", 1.0)
-        avatar_size = int(Theme.BASE_AVATAR_SIZE * scale)
+        avatar_size = int(ThemeManager.BASE_AVATAR_SIZE * scale)
         
         offset = (self.canvas_size - avatar_size) // 2
         self.main_label.setGeometry(offset, offset, avatar_size, avatar_size)
@@ -136,24 +139,30 @@ class RenderWindow(QWidget):
 
     def set_animation(self, path, state=None):
         if state: self.current_state = state
-
         if not path or not os.path.exists(path):
             if self.main_label.movie(): self.main_label.movie().stop()
             self.main_label.setMovie(None)
             self.main_label.clear()
             return
-        
+            
+        # Lógica do LRU Cache [cite: 311]
         if path not in self.movie_cache:
+            # Se atingiu o limite, remove o GIF mais antigo da memória
+            if len(self.movie_cache) >= self.max_cache_size:
+                self.movie_cache.popitem(last=False)
+                
             m = QMovie(path)
             m.setCacheMode(QMovie.CacheAll)
             self.movie_cache[path] = m
+            
+        # Move o item atual para o fim (marcando como o mais recentemente usado)
+        self.movie_cache.move_to_end(path)
         
         target_movie = self.movie_cache[path]
-        
         if self.main_label.movie() != target_movie:
             self.main_label.setMovie(target_movie)
             target_movie.start()
-            self.raise_()
+        self.raise_()
 
     def mousePressEvent(self, event):
         if event.button() != Qt.LeftButton: return

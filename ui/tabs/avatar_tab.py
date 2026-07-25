@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlide
                              QScrollArea, QFrame, QLineEdit, QSpinBox,
                              QComboBox, QInputDialog, QMessageBox)
 from PySide6.QtCore import Qt
-from ui.styles.theme import Theme
 from core.event_bus import EventBus
 
 class AvatarTab(QWidget):
@@ -19,11 +18,6 @@ class AvatarTab(QWidget):
 
         if "animations" not in self.profile:
             self.profile["animations"] = {"main_set": "default", "sets": {"default": {}}}
-
-        self.setStyleSheet(
-            Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX + 
-            Theme.BUTTON_BASE + Theme.BUTTON_MUTE_ACTIVE + Theme.SPIN_BOX_Z
-        )
 
         layout_principal = QVBoxLayout(self)
         scroll = QScrollArea()
@@ -128,7 +122,6 @@ class AvatarTab(QWidget):
         btn_import.clicked.connect(self.import_folder_set)
         
         btn_del = QPushButton("🗑️ Excluir")
-        btn_del.setStyleSheet(Theme.BUTTON_REMOVE)
         btn_del.clicked.connect(self.delete_selected_set)
         
         h_actions.addWidget(btn_new)
@@ -155,7 +148,6 @@ class AvatarTab(QWidget):
             self.path_labels[key] = lbl_path
             
             btn_clear = QPushButton("🗑️")
-            btn_clear.setStyleSheet(Theme.BUTTON_REMOVE)
             btn_clear.setFixedSize(30, 30)
             btn_clear.clicked.connect(lambda chk=False, st=key: self.clear_gif(st))
             
@@ -172,7 +164,6 @@ class AvatarTab(QWidget):
         self.layout_extras = QVBoxLayout(extras_group)
         
         self.btn_add_extra = QPushButton("➕ ADICIONAR NOVO ACESSÓRIO")
-        self.btn_add_extra.setStyleSheet(Theme.BUTTON_PRIMARY)
         self.btn_add_extra.clicked.connect(self.add_layer)
         self.layout_extras.addWidget(self.btn_add_extra)
 
@@ -192,19 +183,13 @@ class AvatarTab(QWidget):
         
         for key, lbl in self.path_labels.items():
             path = self.profile["animations"]["sets"].get(current_set, {}).get(key, "")
-            if not path:
-                lbl.setStyleSheet(f"color: {Theme.TEXT_MUTED};")
-            else:
-                lbl.setStyleSheet(f"color: {Theme.ACCENT_GREEN}; font-weight: normal;")
                 
         if is_editing_active:
             self.btn_equip.setText("✅ EQUIPADO")
             self.btn_equip.setEnabled(False)
-            self.btn_equip.setStyleSheet(Theme.BUTTON_BASE)
         else:
             self.btn_equip.setText("👕 EQUIPAR SELECIONADO")
             self.btn_equip.setEnabled(True)
-            self.btn_equip.setStyleSheet(Theme.BUTTON_PRIMARY)
 
     def refresh_sprite_paths(self, _=None):
         current_set = self.combo_wardrobe.currentText()
@@ -215,10 +200,8 @@ class AvatarTab(QWidget):
             path = anim_set.get(key, "")
             if path:
                 lbl.setText(os.path.basename(path))
-                lbl.setStyleSheet(f"color: {Theme.ACCENT_GREEN};")
             else:
                 lbl.setText("Vazio")
-                lbl.setStyleSheet(f"color: {Theme.TEXT_MUTED};")
         self.update_ui()
 
     def update_scale(self, v):
@@ -343,7 +326,6 @@ class AvatarTab(QWidget):
 
     def _create_accessory_card(self, l_id, c):
         card = QFrame()
-        card.setStyleSheet(Theme.ACCESSORY_CARD)
         v = QVBoxLayout(card)
 
         h_top = QHBoxLayout()
@@ -351,7 +333,6 @@ class AvatarTab(QWidget):
         h_top.addWidget(QLabel(f"<b>{filename.split('.')[0].upper()}</b>"))
         
         btn_del = QPushButton("🗑️")
-        btn_del.setStyleSheet(Theme.BUTTON_REMOVE)
         btn_del.setFixedSize(28, 28)
         btn_del.clicked.connect(lambda: self.delete_layer(l_id))
         h_top.addWidget(btn_del)
@@ -369,7 +350,6 @@ class AvatarTab(QWidget):
         btn_z_down = QPushButton("<")
         btn_z_down.setFixedSize(22, 22)
         lbl_z_val = QLabel(str(c.get("z_index", 1)))
-        lbl_z_val.setStyleSheet(Theme.Z_DISPLAY)
         btn_z_up = QPushButton(">")
         btn_z_up.setFixedSize(22, 22)
 

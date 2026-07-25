@@ -281,14 +281,10 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     
-    # --- CARREGAMENTO DO TEMA GLOBAL (QSS) ---
-    qss_path = os.path.join(os.path.dirname(__file__), "ui", "styles", "main.qss")
-    if os.path.exists(qss_path):
-        with open(qss_path, "r", encoding="utf-8") as f:
-            app.setStyleSheet(f.read())
-    else:
-        print("Aviso: Arquivo main.qss não encontrado.")
-    # -----------------------------------------
+    # --- CARREGAMENTO DO TEMA GLOBAL VIA MOTOR DE TEMA ---
+    from ui.styles.theme import ThemeManager
+    ThemeManager.apply_theme(app, "dark")
+    # -----------------------------------------------------
 
     try:
         engine = PixelTuberApp()

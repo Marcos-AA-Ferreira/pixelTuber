@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout
 from PySide6.QtCore import Qt, QPoint, QTimer, QSize, Signal, QUrl
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 
-from ui.styles.theme import Theme
+from ui.styles.theme import ThemeManager
 from ui.window.components.fso_media_player_widget import MediaPlayerWidget
 
 class DraggableEffectWidget(QWidget):
@@ -50,7 +50,7 @@ class DraggableEffectWidget(QWidget):
         
         # 1. CÁLCULO DE TAMANHO (ESCALA)
         # Usa o tamanho base do avatar definido no tema para calcular a proporção
-        base_size = getattr(Theme, "BASE_AVATAR_SIZE", 300)
+        base_size = getattr(ThemeManager, "BASE_AVATAR_SIZE", 300)
         size_val = int(base_size * max(0.1, scale))
         
         # Define o tamanho real da janela com base na escala

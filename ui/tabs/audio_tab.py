@@ -1,12 +1,11 @@
 # ui/tabs/audio_tab.py
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QComboBox, QProgressBar, QCheckBox, QPushButton, 
-                             QGroupBox, QScrollArea, QFrame)
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, 
+                             QProgressBar, QGroupBox, QScrollArea, QFrame)
 
 from ui.widgets.labeled_slider import LabeledSlider
 from ui.tabs.audio_tab_component.audio_visualizer import AudioVisualizerWidget
 from core.event_bus import EventBus
+from ui.utils.form_builder import FormBuilder # <--- Importando a nossa fábrica!
 
 class AudioTab(QWidget):
     def __init__(self, config_manager):
@@ -51,82 +50,87 @@ class AudioTab(QWidget):
     def _setup_device_section(self):
         group = QGroupBox("Dispositivo de Entrada")
         layout = QVBoxLayout(group)
+        builder = FormBuilder(layout) # Inicia a fábrica para este grupo
         
-        mic_layout = QHBoxLayout()
-        mic_layout.addWidget(QLabel("Microfone:"))
-        self.mic_combo = QComboBox()
-        self.mic_combo.currentIndexChanged.connect(self.on_mic_selected)
-        mic_layout.addWidget(self.mic_combo, 1)
-        
+        # 1. Microfone e Botão de Atualizar
         btn_refresh = QPushButton("🔄 Atualizar")
         btn_refresh.clicked.connect(self.refresh_mics)
-        mic_layout.addWidget(btn_refresh)
-        layout.addLayout(mic_layout)
         
-        vol_layout = QHBoxLayout()
-        vol_layout.addWidget(QLabel("Nível de Entrada:"))
+        self.mic_combo = builder.add_combobox(
+            label_text="Microfone:",
+            items=[], # Será populado pelo EventBus
+            current_text="",
+            callback=self.on_mic_selected,
+            extra_widget=btn_refresh # <--- Nosso novo recurso em ação!
+        )
+        
+        # 2. Barra de Progresso do Volume
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(12)
-        vol_layout.addWidget(self.progress_bar, 1)
-        layout.addLayout(vol_layout)
+        builder._add_row("Nível de Entrada:", self.progress_bar) # Aproveitando a função interna para alinhar
         
         self.layout.addWidget(group)
 
     def _setup_visualizer_section(self):
         group = QGroupBox("Visualização de Frequência")
         layout = QVBoxLayout(group)
+        builder = FormBuilder(layout)
         
+        # 1. Componente Visualizador
         self.visualizer = AudioVisualizerWidget()
-        layout.addWidget(self.visualizer)
+        builder.add_custom_widget(self.visualizer)
         
-        style_layout = QHBoxLayout()
-        style_layout.addWidget(QLabel("Estilo do Gráfico:"))
-        self.combo_style = QComboBox()
-        self.combo_style.addItems(["Clássico", "Onda Contínua", "Barras Digitais"])
-        
-        # Lê direto do ConfigManager (self.cfg)
+        # 2. Seletor de Estilo
         saved_style = self.cfg.data.get("visualizer", {}).get("style", "Clássico")
-        self.combo_style.setCurrentText(saved_style)
         self.visualizer.set_visualizer_style(saved_style)
         
-        self.combo_style.currentTextChanged.connect(self.on_visualizer_style_changed)
-        style_layout.addWidget(self.combo_style, 1)
-        layout.addLayout(style_layout)
+        self.combo_style = builder.add_combobox(
+            label_text="Estilo do Gráfico:",
+            items=["Clássico", "Onda Contínua", "Barras Digitais"],
+            current_text=saved_style,
+            callback=self.on_visualizer_style_changed
+        )
         
         self.layout.addWidget(group)
 
     def _setup_processing_section(self):
         group = QGroupBox("Filtros e Processamento de Voz")
         layout = QVBoxLayout(group)
+        builder = FormBuilder(layout)
         
-        # Lê direto do ConfigManager
         audio_cfg = self.cfg.data.get("audio", {})
         
+        # 1. Ganho
         current_gain = audio_cfg.get("gain", 1.0)
         self.slider_gain = LabeledSlider("Ganho do Microfone (Volume de Entrada):", 0, 500, default_val=int(current_gain * 100), value_format="{v}%")
         self.slider_gain.slider.valueChanged.connect(lambda v: self.bus.request_audio_gain_change.emit(v / 100.0))
-        layout.addWidget(self.slider_gain)
+        builder.add_custom_widget(self.slider_gain)
         
+        # 2. Noise Gate
         self.slider_gate = LabeledSlider("Noise Gate (Corte de Ruído):", 0, 100, default_val=int(audio_cfg.get("noise_gate", 0.02) * 1000), value_format="{v}")
         self.slider_gate.slider.valueChanged.connect(lambda v: self.bus.request_audio_noise_gate_change.emit(v / 1000.0))
-        layout.addWidget(self.slider_gate)
+        builder.add_custom_widget(self.slider_gate)
         
+        # 3. Hold Time
         self.slider_hold = LabeledSlider("Tempo de Retenção (Hold Time):", 0, 1000, default_val=audio_cfg.get("hold_time", 200), value_format="{v}ms")
         self.slider_hold.slider.valueChanged.connect(lambda v: self.bus.request_audio_hold_time_change.emit(v))
-        layout.addWidget(self.slider_hold)
+        builder.add_custom_widget(self.slider_hold)
         
-        self.chk_ducking = QCheckBox("Auto-Ducking (Abaixar música de fundo ao falar)")
-        self.chk_ducking.setChecked(audio_cfg.get("auto_ducking", False))
-        self.chk_ducking.toggled.connect(self.bus.request_audio_ducking_toggle.emit)
-        layout.addWidget(self.chk_ducking)
+        # 4. Auto-Ducking
+        self.chk_ducking = builder.add_checkbox(
+            label_text="Auto-Ducking (Abaixar música de fundo ao falar)",
+            is_checked=audio_cfg.get("auto_ducking", False),
+            callback=self.bus.request_audio_ducking_toggle.emit
+        )
         
         self.layout.addWidget(group)
 
     def _setup_thresholds_section(self):
         group = QGroupBox("Limites de Ativação por Volume (Expressão)")
         layout = QVBoxLayout(group)
+        builder = FormBuilder(layout)
         
         thresh_cfg = self.cfg.data.get("audio", {}).get("thresholds", {"low": 10, "mid": 35, "high": 65, "vhigh": 85})
         
@@ -140,13 +144,16 @@ class AudioTab(QWidget):
         self.slider_high.slider.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("high", v / 100.0))
         self.slider_vhigh.slider.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("vhigh", v / 100.0))
         
-        layout.addWidget(self.slider_low)
-        layout.addWidget(self.slider_mid)
-        layout.addWidget(self.slider_high)
-        layout.addWidget(self.slider_vhigh)
+        builder.add_custom_widget(self.slider_low)
+        builder.add_custom_widget(self.slider_mid)
+        builder.add_custom_widget(self.slider_high)
+        builder.add_custom_widget(self.slider_vhigh)
         
         self.layout.addWidget(group)
 
+    # ==========================================
+    # LÓGICA E CALLBACKS
+    # ==========================================
     def on_visualizer_style_changed(self, style_name):
         self.visualizer.set_visualizer_style(style_name)
         self.bus.request_visualizer_style_change.emit(style_name)

@@ -46,11 +46,11 @@ class EffectCreator(QDialog):
         self.btn_capture = QPushButton("⌨️ ATALHO")
         self.btn_capture.setCheckable(True)
         self.btn_capture.setFixedWidth(100)
-        self.btn_capture.setStyleSheet("background: #3d3d3d; color: white; border-radius: 6px;")
+        self.btn_capture.setObjectName("BtnCaptureHotkey")
         self.btn_capture.clicked.connect(self.start_capture)
         
         self.lbl_hk = QLabel("NENHUM")
-        self.lbl_hk.setStyleSheet("color: #f1c40f; font-family: 'Consolas'; font-weight: bold;")
+        self.lbl_hk.setObjectName("LblHotkeyDisplay")
         
         row1.addWidget(self.name_in)
         row1.addWidget(self.btn_capture)

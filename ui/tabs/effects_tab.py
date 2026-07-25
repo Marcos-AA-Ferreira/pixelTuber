@@ -1,7 +1,6 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTabWidget, QScrollArea, 
                              QGridLayout, QMessageBox, QFrame, QGroupBox, QPushButton)
 from PySide6.QtCore import Qt
-from ui.styles.theme import Theme
 from .effects_tab_component.effect_creator import EffectCreator
 from .effects_tab_component.effect_card import EffectCard
 
@@ -17,7 +16,6 @@ class EffectsTab(QWidget):
         if "custom_effects" not in self.profile:
             self.profile["custom_effects"] = {}
             
-        self.setStyleSheet(Theme.MAIN_TAB_STYLE + Theme.GROUP_BOX)
         self.init_ui()
 
     def init_ui(self):
@@ -27,13 +25,7 @@ class EffectsTab(QWidget):
 
         # --- BOTÃO PRINCIPAL (NOVA JANELA) ---
         self.btn_new = QPushButton("➕ CRIAR NOVO EFEITO")
-        self.btn_new.setStyleSheet("""
-            QPushButton {
-                background-color: #238636; color: white; font-weight: bold; 
-                font-size: 14px; padding: 15px; border-radius: 6px; border: none;
-            }
-            QPushButton:hover { background-color: #2ea043; }
-        """)
+        self.btn_new.setObjectName("BtnNewEffect")
         self.btn_new.clicked.connect(self.open_creator)
         layout_principal.addWidget(self.btn_new)
         
@@ -50,11 +42,6 @@ class EffectsTab(QWidget):
         library_layout = QVBoxLayout(self.library_group)
 
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet(f"""
-            QTabWidget::pane {{ border: 1px solid #333; background: {Theme.BG_DARK}; border-radius: 5px; }}
-            QTabBar::tab {{ background: {Theme.BG_CARD}; color: {Theme.TEXT_MUTED}; padding: 10px 20px; border-top-left-radius: 4px; border-top-right-radius: 4px; }}
-            QTabBar::tab:selected {{ background: {Theme.BG_DARK}; color: {Theme.ACCENT}; border-bottom: 2px solid {Theme.ACCENT}; }}
-        """)
 
         self.grids = { "visual": QGridLayout(), "audio": QGridLayout(), "combo": QGridLayout() }
         sections = [("visual", "🖼️ VISUAIS"), ("audio", "🎵 ÁUDIO"), ("combo", "🎭 COMBOS")]

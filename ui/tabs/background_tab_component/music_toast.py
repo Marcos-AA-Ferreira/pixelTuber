@@ -43,13 +43,7 @@ class MusicToast(QWidget):
         
         # Fundo arredondado (estilo Xiaomi/Dark Mode)
         self.frame = QFrame(self)
-        self.frame.setStyleSheet("""
-            QFrame { 
-                background-color: #1c1c1e; /* Fundo escuro moderno */
-                border-radius: 12px; 
-                border: 1px solid #333333; 
-            }
-        """)
+        self.frame.setObjectName("MusicToastFrame")
         layout.addWidget(self.frame)
         
         frame_layout = QVBoxLayout(self.frame)
