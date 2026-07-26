@@ -55,10 +55,10 @@ class MusicToast(QWidget):
         header_layout.setSpacing(5)
         
         self.lbl_app_icon = QLabel("🎵")
-        self.lbl_app_icon.setStyleSheet("border: none; background: transparent; font-size: 10px;")
+        self.lbl_app_icon.setObjectName("MusicToastAppIcon")
         
         self.lbl_app_name = QLabel("Música • Agora")
-        self.lbl_app_name.setStyleSheet("color: #8e8e93; font-size: 10px; border: none; background: transparent;")
+        self.lbl_app_name.setObjectName("MusicToastAppName")
         
         header_layout.addWidget(self.lbl_app_icon)
         header_layout.addWidget(self.lbl_app_name)
@@ -72,7 +72,7 @@ class MusicToast(QWidget):
         # Capa do Álbum
         self.lbl_cover = QLabel()
         self.lbl_cover.setFixedSize(40, 40)
-        self.lbl_cover.setStyleSheet("background-color: #2c2c2e; border-radius: 6px; border: none;")
+        self.lbl_cover.setObjectName("MusicToastCover")
         self.lbl_cover.setAlignment(Qt.AlignCenter)
         self.lbl_cover.setText("💿")
         
@@ -81,27 +81,23 @@ class MusicToast(QWidget):
         text_layout.setSpacing(0)
         
         self.lbl_title = QLabel("Nenhuma faixa")
-        self.lbl_title.setStyleSheet("color: #ffffff; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        self.lbl_title.setObjectName("MusicToastTitle")
         
         self.lbl_artist = QLabel("Desconhecido")
-        self.lbl_artist.setStyleSheet("color: #8e8e93; font-size: 11px; border: none; background: transparent;")
+        self.lbl_artist.setObjectName("MusicToastArtist")
         
         text_layout.addWidget(self.lbl_title)
         text_layout.addWidget(self.lbl_artist)
         text_layout.addStretch()
         
         # Botões de Controlo
-        btn_style = """
-            QPushButton { background: transparent; border: none; color: #ffffff; font-size: 14px; }
-            QPushButton:hover { color: #0a84ff; }
-        """
         self.btn_play = QPushButton("▶️")
         self.btn_next = QPushButton("⏭️")
         self.btn_close = QPushButton("✖")
         
         for btn in [self.btn_play, self.btn_next, self.btn_close]:
             btn.setFixedSize(24, 24)
-            btn.setStyleSheet(btn_style)
+            btn.setObjectName("MusicToastBtn") # Usa a classe CSS que criamos!
             btn.setCursor(Qt.PointingHandCursor)
             
         self.btn_close.clicked.connect(self.hide_toast)

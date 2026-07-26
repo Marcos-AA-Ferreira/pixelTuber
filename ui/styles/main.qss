@@ -90,3 +90,163 @@ QPushButton#BtnCaptureHotkey { background: #3d3d3d; color: white; border-radius:
 QLabel#LblHotkeyDisplay { color: #f1c40f; font-family: 'Consolas'; font-weight: bold; }
 
 QFrame#MusicToastFrame { background-color: #1c1c1e; border-radius: 12px; border: 1px solid #333333; }
+
+/* ===================================================================
+   SLIDERS E MARCADORES DE VALOR (Zoom, Volume, Ganho, Noise Gate)
+   =================================================================== */
+
+#LabeledSliderContainer {
+    background-color: transparent;
+}
+
+#SliderTitleLabel { font-size: 13px; font-weight: 500; color: #E5E5EA; }
+
+/* Badge estilo Pill / Marcador de Valor Atual */
+#SliderValueBadge {
+    background-color: rgba(0, 122, 255, 0.15);
+    color: #0A84FF;
+    border: 1px solid rgba(10, 132, 255, 0.3);
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: bold;
+    min-width: 45px;
+    text-align: center;
+}
+
+/* Labels de Marcadores/Ticks abaixo da barra (ex: Min, 0dB, Max) */
+#SliderTickLabel {
+    font-size: 10px;
+    color: #8E8E93;
+}
+
+/* Estilização da Barra do QSlider */
+QSlider#CustomSlider::groove:horizontal {
+    border: none;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
+}
+
+QSlider#CustomSlider::sub-page:horizontal {
+    background: #0A84FF;
+    border-radius: 3px;
+}
+
+QSlider#CustomSlider::add-page:horizontal {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+}
+
+QSlider#CustomSlider::handle:horizontal {
+    background: #FFFFFF;
+    border: 2px solid #0A84FF;
+    width: 16px;
+    height: 16px;
+    margin: -5px 0px; /* Centra o handle no groove de 6px */
+    border-radius: 9px;
+}
+
+QSlider#CustomSlider::handle:horizontal:hover {
+    background: #E5E5EA;
+    border-color: #409CFF;
+}
+
+QSlider#CustomSlider::handle:horizontal:pressed {
+    background: #0A84FF;
+    border-color: #FFFFFF;
+}
+
+/* ===================================================================
+   CARDS DE EFEITOS E AVISOS (MusicToast / EffectCard)
+   =================================================================== */
+
+#EffectCard, #MusicToast {
+    background-color: #1C1C1E;
+    border: 1px solid #2C2C2E;
+    border-radius: 10px;
+    padding: 10px;
+}
+
+#EffectCard:hover {
+    border-color: #0A84FF;
+    background-color: #222226;
+}
+
+#MusicToastTitle {
+    font-size: 14px;
+    font-weight: bold;
+    color: #FFFFFF;
+}
+
+#MusicToastSubtitle {
+    font-size: 12px;
+    color: #8E8E93;
+}
+
+/* =======================================================
+   ESTILOS DO MUSIC TOAST (NOTIFICAÇÃO DE ÁUDIO)
+======================================================= */
+
+QLabel#MusicToastAppIcon {
+    border: none;
+    background: transparent;
+    font-size: 10px;
+}
+
+QLabel#MusicToastAppName {
+    color: @TEXT_MUTED;
+    font-size: 10px;
+    border: none;
+    background: transparent;
+}
+
+QLabel#MusicToastCover {
+    background-color: @BG_PREVIEW;
+    border-radius: 6px;
+    border: none;
+}
+
+QLabel#MusicToastTitle {
+    color: @TEXT_PRIMARY;
+    font-size: 12px;
+    font-weight: bold;
+    border: none;
+    background: transparent;
+}
+
+QLabel#MusicToastArtist {
+    color: @TEXT_MUTED;
+    font-size: 11px;
+    border: none;
+    background: transparent;
+}
+
+QPushButton#MusicToastBtn {
+    background: transparent;
+    border: none;
+    color: @TEXT_PRIMARY;
+    font-size: 14px;
+}
+
+QPushButton#MusicToastBtn:hover {
+    color: @ACCENT;
+}
+
+/* =======================================================
+   ESTILOS DO EFFECT CARD
+======================================================= */
+
+QLabel#EffectCardHotkey {
+    color: #d4a017; /* Dourado mantido intencionalmente para destaque */
+    font-size: 9px;
+    font-weight: bold;
+    font-family: 'Consolas', monospace;
+}
+
+QLabel#EffectCardName {
+    color: @TEXT_PRIMARY;
+    font-size: 10px;
+    border: none;
+    font-weight: bold;
+}

@@ -87,11 +87,11 @@ class BackgroundTab(QWidget):
             callback=lambda _: self._dispatch_visual_update()
         )
 
-        self.slider_alpha = LabeledSlider("Nível de Opacidade:", min_val=0, max_val=100, default_val=self.cfg.data.get("bg_opacity", 100), value_format="{v}%")
+        self.slider_alpha = LabeledSlider(title="Nível de Opacidade:", min_val=0, max_val=100, default_val=self.cfg.data.get("bg_opacity", 100), unit="%")
         self.slider_alpha.valueChanged.connect(lambda _: self._dispatch_visual_update())
         builder_render.add_custom_widget(self.slider_alpha)
 
-        self.slider_blur = LabeledSlider("Intensidade do Desfoque:", min_val=0, max_val=50, default_val=self.cfg.data.get("bg_blur", 0), value_format="{v} px")
+        self.slider_blur = LabeledSlider(title="Intensidade do Desfoque:", min_val=0, max_val=50, default_val=self.cfg.data.get("bg_blur", 0), unit=" px")
         self.slider_blur.valueChanged.connect(lambda _: self._dispatch_visual_update())
         builder_render.add_custom_widget(self.slider_blur)
         
@@ -152,7 +152,7 @@ class BackgroundTab(QWidget):
         audio_layout.addLayout(music_actions)
 
         vol_row = QHBoxLayout()
-        self.slider_music_vol = LabeledSlider("Volume Principal:", min_val=0, max_val=100, default_val=self.cfg.data.get("bg_music_vol", 50), value_format="{v}%")
+        self.slider_music_vol = LabeledSlider(title="Volume Principal:", min_val=0, max_val=100, default_val=self.cfg.data.get("bg_music_vol", 50), unit="%")
         self.slider_music_vol.valueChanged.connect(lambda _: self._dispatch_audio_update())
         
         self.check_mute = QCheckBox("🔇 Mudo")

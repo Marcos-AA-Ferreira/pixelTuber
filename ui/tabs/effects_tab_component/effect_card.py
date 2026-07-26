@@ -32,7 +32,7 @@ class EffectCard(QFrame):
         
         hk_text = self.data.get('hotkey', '').upper()
         self.lbl_hk = QLabel(hk_text if hk_text else "---")
-        self.lbl_hk.setStyleSheet("color: #d4a017; font-size: 9px; font-weight: bold; font-family: 'Consolas';")
+        self.lbl_hk.setObjectName("EffectCardHotkey")
         
         header.addWidget(self.led)
         header.addStretch()
@@ -59,7 +59,7 @@ class EffectCard(QFrame):
         # --- NOME DO EFEITO ---
         name = QLabel(self.data.get('name', 'Sem Nome'))
         name.setAlignment(Qt.AlignCenter)
-        name.setStyleSheet("color: #c9d1d9; font-size: 10px; border: none; font-weight: bold;")
+        name.setObjectName("EffectCardName")
         name.setWordWrap(True)
         lay.addWidget(name)
 

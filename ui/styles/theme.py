@@ -45,7 +45,7 @@ class ThemeManager:
             qss_content = f.read()
 
         # Motor de Injeção: Troca os marcadores (ex: @ACCENT) pelas cores reais Hexadecimais
-        for marcador, cor in palette.items():
+        for marcador, cor in sorted(palette.items(), key=lambda x: len(x[0]), reverse=True):
             qss_content = qss_content.replace(marcador, cor)
 
         # Aplica o estilo dinâmico na aplicação inteira de uma só vez

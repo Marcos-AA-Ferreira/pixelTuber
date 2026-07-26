@@ -5,7 +5,8 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton,
 from ui.widgets.labeled_slider import LabeledSlider
 from ui.tabs.audio_tab_component.audio_visualizer import AudioVisualizerWidget
 from core.event_bus import EventBus
-from ui.utils.form_builder import FormBuilder # <--- Importando a nossa fábrica!
+from ui.widgets.labeled_slider import LabeledSlider
+from ui.utils.form_builder import FormBuilder
 
 class AudioTab(QWidget):
     def __init__(self, config_manager):
@@ -104,18 +105,35 @@ class AudioTab(QWidget):
         
         # 1. Ganho
         current_gain = audio_cfg.get("gain", 1.0)
-        self.slider_gain = LabeledSlider("Ganho do Microfone (Volume de Entrada):", 0, 500, default_val=int(current_gain * 100), value_format="{v}%")
-        self.slider_gain.slider.valueChanged.connect(lambda v: self.bus.request_audio_gain_change.emit(v / 100.0))
-        builder.add_custom_widget(self.slider_gain)
+        self.slider_gain = LabeledSlider(
+            title="Ganho do Microfone (Volume de Entrada):", 
+            min_val=0, 
+            max_val=500, 
+            default_val=int(current_gain * 100), 
+            step=10,
+            unit="%",
+            ticks=[("0%", 0), ("100%", 100), ("500%", 500)]
+        )
         
         # 2. Noise Gate
-        self.slider_gate = LabeledSlider("Noise Gate (Corte de Ruído):", 0, 100, default_val=int(audio_cfg.get("noise_gate", 0.02) * 1000), value_format="{v}")
-        self.slider_gate.slider.valueChanged.connect(lambda v: self.bus.request_audio_noise_gate_change.emit(v / 1000.0))
-        builder.add_custom_widget(self.slider_gate)
+        self.slider_gate = LabeledSlider(
+            title="Noise Gate (Corte de Ruído):", 
+            min_val=0, 
+            max_val=100, 
+            default_val=int(audio_cfg.get("noise_gate", 0.02) * 1000), 
+            unit="",
+            ticks=[("0", 0), ("50", 50), ("100", 100)]
+        )
         
         # 3. Hold Time
-        self.slider_hold = LabeledSlider("Tempo de Retenção (Hold Time):", 0, 1000, default_val=audio_cfg.get("hold_time", 200), value_format="{v}ms")
-        self.slider_hold.slider.valueChanged.connect(lambda v: self.bus.request_audio_hold_time_change.emit(v))
+        self.slider_hold = LabeledSlider(
+            title="Tempo de Retenção (Hold Time):", 
+            min_val=0, 
+            max_val=1000, 
+            default_val=audio_cfg.get("hold_time", 200), 
+            unit=" ms"
+        )
+        self.slider_hold.valueChanged.connect(lambda v: self.bus.request_audio_hold_time_change.emit(int(v)))
         builder.add_custom_widget(self.slider_hold)
         
         # 4. Auto-Ducking
@@ -134,15 +152,15 @@ class AudioTab(QWidget):
         
         thresh_cfg = self.cfg.data.get("audio", {}).get("thresholds", {"low": 10, "mid": 35, "high": 65, "vhigh": 85})
         
-        self.slider_low = LabeledSlider("Volume Baixo (Falar sutil):", 0, 100, default_val=thresh_cfg.get("low", 10), value_format="{v}%")
-        self.slider_mid = LabeledSlider("Volume Médio (Conversa normal):", 0, 100, default_val=thresh_cfg.get("mid", 35), value_format="{v}%")
-        self.slider_high = LabeledSlider("Volume Alto (Empolgado/Grito):", 0, 100, default_val=thresh_cfg.get("high", 65), value_format="{v}%")
-        self.slider_vhigh = LabeledSlider("Volume Muito Alto (Susto/Pico):", 0, 100, default_val=thresh_cfg.get("vhigh", 85), value_format="{v}%")
+        self.slider_low = LabeledSlider("Volume Baixo (Falar sutil):", 0, 100, default_val=thresh_cfg.get("low", 10), unit="%")
+        self.slider_mid = LabeledSlider("Volume Médio (Conversa normal):", 0, 100, default_val=thresh_cfg.get("mid", 35), unit="%")
+        self.slider_high = LabeledSlider("Volume Alto (Empolgado/Grito):", 0, 100, default_val=thresh_cfg.get("high", 65), unit="%")
+        self.slider_vhigh = LabeledSlider("Volume Muito Alto (Susto/Pico):", 0, 100, default_val=thresh_cfg.get("vhigh", 85), unit="%")
         
-        self.slider_low.slider.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("low", v / 100.0))
-        self.slider_mid.slider.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("med", v / 100.0))
-        self.slider_high.slider.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("high", v / 100.0))
-        self.slider_vhigh.slider.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("vhigh", v / 100.0))
+        self.slider_low.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("low", v / 100.0))
+        self.slider_mid.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("med", v / 100.0))
+        self.slider_high.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("high", v / 100.0))
+        self.slider_vhigh.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("vhigh", v / 100.0))
         
         builder.add_custom_widget(self.slider_low)
         builder.add_custom_widget(self.slider_mid)

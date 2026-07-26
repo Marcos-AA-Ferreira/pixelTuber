@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlide
                              QComboBox, QInputDialog, QMessageBox)
 from PySide6.QtCore import Qt
 from core.event_bus import EventBus
+from ui.widgets.labeled_slider import LabeledSlider
 
 class AvatarTab(QWidget):
     def __init__(self, config_manager):
@@ -74,18 +75,17 @@ class AvatarTab(QWidget):
         btns.addWidget(self.btn_mute)
         layout.addLayout(btns)
 
-        h_scale = QHBoxLayout()
-        h_scale.addWidget(QLabel("Escala Geral (Zoom):"))
-        self.lbl_scale_pct = QLabel("100%")
-        h_scale.addStretch()
-        h_scale.addWidget(self.lbl_scale_pct)
-        layout.addLayout(h_scale)
-
-        self.scale_sld = QSlider(Qt.Horizontal)
-        self.scale_sld.setRange(10, 400)
         current_scale = self.profile.get("render", {}).get("scale", 1.0)
-        self.scale_sld.setValue(int(current_scale * 100))
-        self.lbl_scale_pct.setText(f"{self.scale_sld.value()}%")
+        
+        self.scale_sld = LabeledSlider(
+            title="Escala Geral (Zoom):",
+            min_val=10,
+            max_val=400,
+            default_val=int(current_scale * 100),
+            step=1,
+            unit="%",
+            ticks=[("10%", 10), ("100%", 100), ("400%", 400)]
+        )
         self.scale_sld.valueChanged.connect(self.update_scale)
         layout.addWidget(self.scale_sld)
 
