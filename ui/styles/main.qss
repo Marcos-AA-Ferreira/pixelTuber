@@ -250,3 +250,48 @@ QLabel#EffectCardName {
     border: none;
     font-weight: bold;
 }
+
+/* =======================================================
+   OUTROS COMPONENTES (Effect Creator, Background, Visual)
+======================================================= */
+
+QPushButton#BtnSelectImage {
+    background: #3d3d3d;
+    color: white;
+    border-radius: 6px;
+    padding: 5px;
+}
+
+QPushButton#BtnSelectImage:hover {
+    background: @ACCENT;
+}
+
+QCheckBox#SyncCheckLabel {
+    color: @TEXT_MUTED;
+    font-size: 11px;
+}
+
+QLabel#AccentLabel {
+    color: @ACCENT;
+}
+
+QFrame#SeparatorFrame {
+    border-top: 1px solid #30363d;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+/* =======================================================
+   FILE PICKER (SELETOR DE ARQUIVO DINÂMICO)
+======================================================= */
+
+QPushButton#FilePickerBtn {
+    /* O estilo padrão já é herdado dos botões genéricos no topo do QSS */
+}
+
+/* Quando a propriedade dinâmica "has_file" for verdadeira, ele muda de cor sozinho! */
+QPushButton#FilePickerBtn[has_file="true"] {
+    background-color: #1b4d2e;
+    color: #85e89d;
+    border: 1px solid #238636;
+}

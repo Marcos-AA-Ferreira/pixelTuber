@@ -89,7 +89,7 @@ class EffectCreator(QDialog):
         self.icon_stack.addWidget(self.emoji_in)
         
         self.btn_select_img = QPushButton("📁 BUSCAR IMAGEM")
-        self.btn_select_img.setStyleSheet("background: #3d3d3d; color: white; border-radius: 6px; padding: 5px;")
+        self.btn_select_img.setObjectName("BtnSelectImage")
         self.btn_select_img.clicked.connect(self.select_icon_image)
         self.icon_stack.addWidget(self.btn_select_img)
         
@@ -120,7 +120,7 @@ class EffectCreator(QDialog):
 
         self.sync_check = QCheckBox("Sincronizar Áudio")
         self.sync_check.setChecked(True)
-        self.sync_check.setStyleSheet("color: #888; font-size: 11px;")
+        self.sync_check.setObjectName("SyncCheckLabel")
         dur_box.addWidget(self.sync_check, 0, Qt.AlignCenter)
 
         config_lay.addLayout(dur_box, 1)

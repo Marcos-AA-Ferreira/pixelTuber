@@ -73,9 +73,9 @@ class BackgroundTab(QWidget):
         bg_layout.addLayout(bg_btn_row)
 
         render_frame = QFrame()
-        render_frame.setStyleSheet("QFrame { border-top: 1px solid #30363d; margin-top: 10px; padding-top: 10px; }")
+        render_frame.setObjectName("SeparatorFrame")
         render_lay = QVBoxLayout(render_frame)
-        builder_render = FormBuilder(render_lay) # Construtor Injetado
+        builder_render = FormBuilder(render_lay)
         
         layer_options = ["⬇️ Fundo (Atrás do Avatar)", "🟦 Normal", "⬆️ Sobrepor (Frente do Avatar)"]
         current_layer_idx = self.cfg.data.get("bg_layer_level", 0)

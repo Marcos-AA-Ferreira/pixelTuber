@@ -59,7 +59,7 @@ class VisualSection(QFrame):
         opacity_header = QHBoxLayout()
         opacity_header.addWidget(QLabel("OPACIDADE:"))
         self.lbl_opacity_val = QLabel("100%")
-        self.lbl_opacity_val.setStyleSheet("color: #58a6ff;")
+        self.lbl_opacity_val.setObjectName("AccentLabel")
         opacity_header.addWidget(self.lbl_opacity_val, 0, Qt.AlignRight)
         
         self.opacity_slider = QSlider(Qt.Horizontal)

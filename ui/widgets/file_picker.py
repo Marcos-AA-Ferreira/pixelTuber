@@ -17,6 +17,7 @@ class FilePickerWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.btn = QPushButton(f"📂 {button_text}")
+        self.btn.setObjectName("FilePickerBtn")
         self.btn.clicked.connect(self.open_dialog)
         layout.addWidget(self.btn)
 
@@ -28,19 +29,20 @@ class FilePickerWidget(QWidget):
             self.fileSelected.emit(path)
 
     def set_path(self, path):
-        """Atualiza a interface do botão de acordo com o arquivo selecionado (ou limpa se vazio)."""
         self.current_path = path
         if path:
             short_name = os.path.basename(path)[:15]
             self.btn.setText(f"✅ {short_name}...")
-            self.btn.setStyleSheet("background: #1b4d2e; color: #85e89d; border-color: #238636;")
         else:
-            # Reseta para o padrão se enviar string vazia
             text_original = self.btn.text().replace("✅ ", "").replace("...", "").strip()
-            if "📂" not in text_original:
-                 text_original = f"📂 {text_original}"
+            if "📁" not in text_original:
+                text_original = f"📁 {text_original}"
             self.btn.setText(text_original)
-            self.btn.setStyleSheet("")
+
+        # Atualiza o estado do botão no QSS e manda a interface se redesenhar
+        self.btn.setProperty("has_file", bool(path))
+        self.btn.style().unpolish(self.btn)
+        self.btn.style().polish(self.btn)
 
     def get_path(self):
         return self.current_path
