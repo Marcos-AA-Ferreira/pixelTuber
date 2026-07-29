@@ -1,11 +1,8 @@
 # ui/tabs/audio_tab.py
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, 
-                             QProgressBar, QGroupBox, QScrollArea, QFrame)
-
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QProgressBar, QGroupBox, QScrollArea, QFrame
 from ui.widgets.labeled_slider import LabeledSlider
 from ui.tabs.audio_tab_component.audio_visualizer import AudioVisualizerWidget
 from core.event_bus import EventBus
-from ui.widgets.labeled_slider import LabeledSlider
 from ui.utils.form_builder import FormBuilder
 
 class AudioTab(QWidget):
@@ -15,7 +12,7 @@ class AudioTab(QWidget):
         self.bus = EventBus.instance()
         self.init_ui()
         self.connect_bus_signals()
-        
+
     def init_ui(self):
         main_layout = QVBoxLayout(self)
         
@@ -25,74 +22,79 @@ class AudioTab(QWidget):
         
         scroll_content = QWidget()
         self.layout = QVBoxLayout(scroll_content)
-        
+
+        # Configuração Guiada por Dados!
         self._setup_device_section()
         self._setup_visualizer_section()
         self._setup_processing_section()
         self._setup_thresholds_section()
-        
+
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
-        
+
         # Pede ao EventBus a lista inicial de microfones
-        self.refresh_mics()
+        self.bus.request_refresh_devices.emit()
 
     def connect_bus_signals(self):
-        """Escuta os retornos do motor de áudio via EventBus"""
-        if hasattr(self, 'progress_bar'):
-            self.bus.audio_volume_updated.connect(lambda vol: self.progress_bar.setValue(int(vol * 100)))
+        """Inscreve a aba de áudio nos eventos de resposta do sistema (EventBus)"""
+        # Verifica e conecta o sinal que traz a lista de microfones
+        # Nota: Ajuste 'audio_devices_updated' se o nome do seu sinal no event_bus.py for diferente
+        if hasattr(self.bus, 'audio_devices_updated'):
+            self.bus.audio_devices_updated.connect(self.populate_mics)
+        elif hasattr(self.bus, 'mic_list_updated'):
+            self.bus.mic_list_updated.connect(self.populate_mics)
 
-        if hasattr(self, 'visualizer'):
-            self.bus.audio_processed_updated.connect(lambda vol, bands: self.visualizer.update_bands(bands))
-
-        # Quando o EventBus devolver a lista de microfones, roda a função populate_mics
-        self.bus.audio_devices_updated.connect(self.populate_mics)
+    # =================================================================
+    # COMPONENTIZAÇÃO COM DATA-DRIVEN (A Grande Mudança)
+    # =================================================================
 
     def _setup_device_section(self):
         group = QGroupBox("Dispositivo de Entrada")
         layout = QVBoxLayout(group)
-        builder = FormBuilder(layout) # Inicia a fábrica para este grupo
-        
-        # 1. Microfone e Botão de Atualizar
-        btn_refresh = QPushButton("🔄 Atualizar")
-        btn_refresh.clicked.connect(self.refresh_mics)
-        
+        builder = FormBuilder(layout)
+
+        # Como tem botões extra, podemos manter a criação manual aqui,
+        # ou passar o botão extra pelo Schema. Para manter simples:
+        self.btn_refresh = QPushButton("🔄 Atualizar")
+        self.btn_refresh.clicked.connect(self.refresh_mics)
+
         self.mic_combo = builder.add_combobox(
             label_text="Microfone:",
-            items=[], # Será populado pelo EventBus
+            items=[],
             current_text="",
             callback=self.on_mic_selected,
-            extra_widget=btn_refresh # <--- Nosso novo recurso em ação!
+            extra_widget=self.btn_refresh
         )
-        
-        # 2. Barra de Progresso do Volume
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(12)
-        builder._add_row("Nível de Entrada:", self.progress_bar) # Aproveitando a função interna para alinhar
-        
+        builder._add_row("Nível de Entrada:", self.progress_bar)
+
         self.layout.addWidget(group)
 
     def _setup_visualizer_section(self):
         group = QGroupBox("Visualização de Frequência")
         layout = QVBoxLayout(group)
         builder = FormBuilder(layout)
-        
-        # 1. Componente Visualizador
+
         self.visualizer = AudioVisualizerWidget()
         builder.add_custom_widget(self.visualizer)
+
+        schema = [{
+            "type": "combobox",
+            "key": "style", # Chave no JSON
+            "title": "Estilo do Gráfico:",
+            "options": ["Clássico", "Onda Contínua", "Barras Digitais", "Neon Simétrico", "Pontos de Energia"],
+            "default": "Clássico"
+        }]
         
-        # 2. Seletor de Estilo
-        saved_style = self.cfg.data.get("visualizer", {}).get("style", "Clássico")
-        self.visualizer.set_visualizer_style(saved_style)
-        
-        self.combo_style = builder.add_combobox(
-            label_text="Estilo do Gráfico:",
-            items=["Clássico", "Onda Contínua", "Barras Digitais"],
-            current_text=saved_style,
-            callback=self.on_visualizer_style_changed
-        )
+        vis_config = self.cfg.data.get("visualizer", {})
+        builder.build_from_schema(schema, vis_config, self._on_visualizer_field_changed)
+
+        # Configura o estilo inicial
+        self.visualizer.set_visualizer_style(vis_config.get("style", "Clássico"))
         
         self.layout.addWidget(group)
 
@@ -100,48 +102,36 @@ class AudioTab(QWidget):
         group = QGroupBox("Filtros e Processamento de Voz")
         layout = QVBoxLayout(group)
         builder = FormBuilder(layout)
-        
-        audio_cfg = self.cfg.data.get("audio", {})
-        
-        # 1. Ganho
-        current_gain = audio_cfg.get("gain", 1.0)
-        self.slider_gain = LabeledSlider(
-            title="Ganho do Microfone (Volume de Entrada):", 
-            min_val=0, 
-            max_val=500, 
-            default_val=int(current_gain * 100), 
-            step=10,
-            unit="%",
-            ticks=[("0%", 0), ("100%", 100), ("500%", 500)]
-        )
-        
-        # 2. Noise Gate
-        self.slider_gate = LabeledSlider(
-            title="Noise Gate (Corte de Ruído):", 
-            min_val=0, 
-            max_val=100, 
-            default_val=int(audio_cfg.get("noise_gate", 0.02) * 1000), 
-            unit="",
-            ticks=[("0", 0), ("50", 50), ("100", 100)]
-        )
-        
-        # 3. Hold Time
-        self.slider_hold = LabeledSlider(
-            title="Tempo de Retenção (Hold Time):", 
-            min_val=0, 
-            max_val=1000, 
-            default_val=audio_cfg.get("hold_time", 200), 
-            unit=" ms"
-        )
-        self.slider_hold.valueChanged.connect(lambda v: self.bus.request_audio_hold_time_change.emit(int(v)))
-        builder.add_custom_widget(self.slider_hold)
-        
-        # 4. Auto-Ducking
-        self.chk_ducking = builder.add_checkbox(
-            label_text="Auto-Ducking (Abaixar música de fundo ao falar)",
-            is_checked=audio_cfg.get("auto_ducking", False),
-            callback=self.bus.request_audio_ducking_toggle.emit
-        )
+
+        # O Schema define a estrutura de dados, o builder desenha!
+        schema = [
+            {
+                "type": "custom_slider", "key": "gain",
+                "title": "Ganho do Microfone (Volume de Entrada):",
+                "min_val": 0, "max_val": 5, "default": 1.0, "step": 0.1, "unit": "x",
+                "ticks": [("0x", 0), ("1x", 1), ("5x", 5)], "decimals": 1
+            },
+            {
+                "type": "custom_slider", "key": "noise_gate",
+                "title": "Noise Gate (Corte de Ruído):",
+                "min_val": 0, "max_val": 1, "default": 0.02, "step": 0.01, "unit": "",
+                "ticks": [("0", 0), ("0.5", 0.5), ("1", 1)], "decimals": 2
+            },
+            {
+                "type": "custom_slider", "key": "hold_time",
+                "title": "Tempo de Retenção (Hold Time):",
+                "min_val": 0, "max_val": 1000, "default": 200, "step": 10, "unit": " ms",
+                "decimals": 0
+            },
+            {
+                "type": "switch", "key": "auto_ducking",
+                "title": "Auto-Ducking (Abaixar música de fundo ao falar)",
+                "default": False
+            }
+        ]
+
+        audio_config = self.cfg.data.get("audio", {})
+        builder.build_from_schema(schema, audio_config, self._on_audio_field_changed)
         
         self.layout.addWidget(group)
 
@@ -149,32 +139,42 @@ class AudioTab(QWidget):
         group = QGroupBox("Limites de Ativação por Volume (Expressão)")
         layout = QVBoxLayout(group)
         builder = FormBuilder(layout)
-        
-        thresh_cfg = self.cfg.data.get("audio", {}).get("thresholds", {"low": 10, "mid": 35, "high": 65, "vhigh": 85})
-        
-        self.slider_low = LabeledSlider("Volume Baixo (Falar sutil):", 0, 100, default_val=thresh_cfg.get("low", 10), unit="%")
-        self.slider_mid = LabeledSlider("Volume Médio (Conversa normal):", 0, 100, default_val=thresh_cfg.get("mid", 35), unit="%")
-        self.slider_high = LabeledSlider("Volume Alto (Empolgado/Grito):", 0, 100, default_val=thresh_cfg.get("high", 65), unit="%")
-        self.slider_vhigh = LabeledSlider("Volume Muito Alto (Susto/Pico):", 0, 100, default_val=thresh_cfg.get("vhigh", 85), unit="%")
-        
-        self.slider_low.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("low", v / 100.0))
-        self.slider_mid.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("med", v / 100.0))
-        self.slider_high.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("high", v / 100.0))
-        self.slider_vhigh.valueChanged.connect(lambda v: self.bus.request_audio_threshold_change.emit("vhigh", v / 100.0))
-        
-        builder.add_custom_widget(self.slider_low)
-        builder.add_custom_widget(self.slider_mid)
-        builder.add_custom_widget(self.slider_high)
-        builder.add_custom_widget(self.slider_vhigh)
+
+        schema = [
+            {"type": "custom_slider", "key": "low", "title": "Volume Baixo (Falar sutil):", "min_val": 0, "max_val": 1, "default": 0.10, "step": 0.01, "unit": "", "decimals": 2},
+            {"type": "custom_slider", "key": "med", "title": "Volume Médio (Conversa normal):", "min_val": 0, "max_val": 1, "default": 0.35, "step": 0.01, "unit": "", "decimals": 2},
+            {"type": "custom_slider", "key": "high", "title": "Volume Alto (Empolgado/Grito):", "min_val": 0, "max_val": 1, "default": 0.65, "step": 0.01, "unit": "", "decimals": 2},
+            {"type": "custom_slider", "key": "vhigh", "title": "Volume Muito Alto (Susto/Pico):", "min_val": 0, "max_val": 1, "default": 0.85, "step": 0.01, "unit": "", "decimals": 2},
+        ]
+
+        thresh_config = self.cfg.data.get("audio", {}).get("thresholds", {})
+        builder.build_from_schema(schema, thresh_config, self._on_threshold_changed)
         
         self.layout.addWidget(group)
 
-    # ==========================================
-    # LÓGICA E CALLBACKS
-    # ==========================================
-    def on_visualizer_style_changed(self, style_name):
-        self.visualizer.set_visualizer_style(style_name)
-        self.bus.request_visualizer_style_change.emit(style_name)
+    # =================================================================
+    # EVENTOS DE CALLBACK DESPACHANTES (Roteadores Universais)
+    # =================================================================
+
+    def _on_visualizer_field_changed(self, key, value):
+        if key == "style":
+            self.visualizer.set_visualizer_style(value)
+            self.bus.request_visualizer_style_change.emit(value)
+
+    def _on_audio_field_changed(self, key, value):
+        """Um único método roteia todas as alterações da aba de áudio."""
+        if key == "gain":
+            self.bus.request_audio_gain_change.emit(value)
+        elif key == "noise_gate":
+            self.bus.request_audio_noise_gate_change.emit(value)
+        elif key == "hold_time":
+            self.bus.request_audio_hold_time_change.emit(int(value))
+        elif key == "auto_ducking":
+            self.bus.request_audio_ducking_toggle.emit(value)
+
+    def _on_threshold_changed(self, key, value):
+        # Os Sliders retornam o float correto devido ao decimals=2, não precisa dividir por 100
+        self.bus.request_audio_threshold_change.emit(key, value)
 
     def on_mic_selected(self, index):
         dev_idx = self.mic_combo.itemData(index)

@@ -101,6 +101,16 @@ class RenderWindow(QWidget):
         
         self.main_label = RotatableLabel(self)
         self.main_label.setAlignment(Qt.AlignCenter)
+
+        # --- NOVAS CAMADAS (Corpo e Cabeça) ---
+        # Elas herdam o main_label como pai, assim rodam e escalam junto com ele
+        self.body_label = RotatableLabel(self.main_label)
+        self.body_label.setAlignment(Qt.AlignCenter)
+        self.body_label.hide() # Ficam ocultas até o modo "split" ser ativado
+
+        self.head_label = RotatableLabel(self.main_label)
+        self.head_label.setAlignment(Qt.AlignCenter)
+        self.head_label.hide()
         
         self.accessories = AccessoryManager(self, config_manager)
         
@@ -129,40 +139,43 @@ class RenderWindow(QWidget):
     def update_geometry(self):
         scale = self.cfg.data["render"].get("scale", 1.0)
         avatar_size = int(ThemeManager.BASE_AVATAR_SIZE * scale)
-        
         offset = (self.canvas_size - avatar_size) // 2
+
         self.main_label.setGeometry(offset, offset, avatar_size, avatar_size)
-        self.accessories.update(self.main_label)
         
+        # Sincroniza o tamanho das camadas internas para preencherem o contêiner
+        self.body_label.setGeometry(0, 0, avatar_size, avatar_size)
+        self.head_label.setGeometry(0, 0, avatar_size, avatar_size)
+
+        self.accessories.update(self.main_label)
         self.cfg.data["render"]["x"] = self.x()
         self.cfg.data["render"]["y"] = self.y()
 
-    def set_animation(self, path, state=None):
-        if state: self.current_state = state
+    def set_layer_media(self, target_label, path):
+        """Método flexível para carregar GIFs/Imagens em qualquer camada."""
         if not path or not os.path.exists(path):
-            if self.main_label.movie(): self.main_label.movie().stop()
-            self.main_label.setMovie(None)
-            self.main_label.clear()
+            if target_label.movie():
+                target_label.movie().stop()
+            target_label.setMovie(None)
+            target_label.clear()
             return
             
-        # Lógica do LRU Cache [cite: 311]
+        # Lógica do LRU Cache
         if path not in self.movie_cache:
-            # Se atingiu o limite, remove o GIF mais antigo da memória
             if len(self.movie_cache) >= self.max_cache_size:
                 self.movie_cache.popitem(last=False)
-                
             m = QMovie(path)
             m.setCacheMode(QMovie.CacheAll)
             self.movie_cache[path] = m
-            
-        # Move o item atual para o fim (marcando como o mais recentemente usado)
+
         self.movie_cache.move_to_end(path)
-        
         target_movie = self.movie_cache[path]
-        if self.main_label.movie() != target_movie:
-            self.main_label.setMovie(target_movie)
+
+        if target_label.movie() != target_movie:
+            target_label.setMovie(target_movie)
             target_movie.start()
-        self.raise_()
+        
+        # O self.raise_() não é necessário em cada camada, apenas na janela inteira
 
     def mousePressEvent(self, event):
         if event.button() != Qt.LeftButton: return

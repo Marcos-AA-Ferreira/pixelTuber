@@ -19,21 +19,72 @@ class AnimationManager:
     # LÓGICA DE ANIMAÇÃO (LIP-SYNC)
     # ================================================================
 
-    def update(self, vol):
+    def _determine_voice_state(self, volume):
         """
-        Recebe o volume atual, decide qual é o sprite/GIF correto (lip-sync),
-        aplica o decaimento e atualiza diretamente a janela de renderização.
+        Calcula o estado da animação ("mute", "low", "med", "high", "very_high")
+        com base no volume recebido do microfone em relação ao noise gate.
         """
-        path = self.get_current_path(vol)
+        # Pega o limite de ruído configurado (se não achar, assume 0.02)
+        # Ajuste a forma de buscar o config caso seu get_audio_config seja diferente
+        gate = self.cfg.data.get("audio", {}).get("noise_gate", 0.02)
         
-        # Só atualiza a janela se o caminho mudou, evitando reiniciar o GIF do frame zero a cada frame
-        if path and path != self.current_rendered_path:
-            if hasattr(self.render, 'set_animation'):
-                self.render.set_animation(path)
-                self.current_rendered_path = path
-            elif hasattr(self.render, 'load_image'):
-                self.render.load_image(path)
-                self.current_rendered_path = path
+        # Se o volume for menor que o limite, está em silêncio
+        if volume < gate:
+            return "mute"
+            
+        # Calcula o quão alto a pessoa está falando além do ruído de fundo
+        active_vol = volume - gate
+        
+        # Define os limites para cada intensidade de fala
+        if active_vol < 0.1:
+            return "low"
+        elif active_vol < 0.3:
+            return "med"
+        elif active_vol < 0.6:
+            return "high"
+        else:
+            return "very_high"
+
+    def update(self, vol):
+        anim_cfg = self.cfg.data.get("animations", {})
+        active_set_name = anim_cfg.get("main_set", "default")
+        active_set = anim_cfg.get("sets", {}).get(active_set_name, {})
+
+        # Verifica o modo (se não existir, assume o legado "full")
+        mode = active_set.get("mode", "full") 
+        
+        # Determine o estado baseado no volume (ex: "mute", "low", "med", etc.)
+        # Assumindo que você já tem um método que faz isso:
+        state = self._determine_voice_state(vol) 
+
+        if mode == "full":
+            # --- MODO AVATAR INTEIRO ---
+            self.render.body_label.hide()
+            self.render.head_label.hide()
+            self.render.main_label.show()
+
+            # Tenta pegar no formato novo, se não achar, usa o antigo para não quebrar skins velhas
+            path = active_set.get("full", {}).get(state, active_set.get(state, ""))
+            self.render.set_layer_media(self.render.main_label, path)
+
+        elif mode == "split":
+            # --- MODO CABEÇA/CORPO SEPARADOS ---
+            # Limpa o contêiner base e mostra as camadas internas
+            self.render.set_layer_media(self.render.main_label, "")
+            self.render.body_label.show()
+            self.render.head_label.show()
+
+            # A cabeça reage ao microfone normalmente
+            head_path = active_set.get("head", {}).get(state, "")
+            
+            # O corpo pode ter uma lógica mais simples (idle ou speaking)
+            # ou até reagir ao pulo/movimento no futuro
+            is_speaking = vol > self.cfg.get_audio_config("noise_gate", 0.02)
+            body_state = "speaking" if is_speaking else "idle"
+            body_path = active_set.get("body", {}).get(body_state, "")
+
+            self.render.set_layer_media(self.render.head_label, head_path)
+            self.render.set_layer_media(self.render.body_label, body_path)
 
     def get_current_path(self, vol):
         """

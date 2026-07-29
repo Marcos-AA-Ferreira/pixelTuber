@@ -79,3 +79,64 @@ class FormBuilder:
         """Adiciona um componente customizado (como o LabeledSlider) diretamente ao layout."""
         self.parent_layout.addWidget(widget)
         return widget
+
+    def build_from_schema(self, schema_list, data_source, event_callback):
+        """
+        Constrói dinamicamente os widgets baseados em uma lista de dicionários (schema).
+        
+        :param schema_list: Lista de dicionários com as propriedades do widget.
+        :param data_source: Dicionário atual das configurações OU Função Getter.
+        :param event_callback: Função genérica para tratar alterações.
+        """
+        for field in schema_list:
+            field_type = field.get("type")
+            key = field.get("key")
+            title = field.get("title", "")
+            
+            # 🚀 A CORREÇÃO ESTÁ AQUI: Verifica de forma inteligente o tipo da fonte de dados
+            if callable(data_source):
+                # Se for uma função (como no settings_tab), executa a função
+                current_val = data_source(key)
+            else:
+                # Se for um dicionário (como no audio_tab), usa o .get()
+                current_val = data_source.get(key)
+                
+            # Se não achou nada em nenhum dos dois casos, usa o default do schema
+            if current_val is None:
+                current_val = field.get("default")
+
+            # Cria um callback isolado para evitar o problema de late binding em loops
+            cb = lambda val, k=key: event_callback(k, val)
+
+            if field_type == "slider":
+                pass # Reservado caso use o QSlider nativo depois
+
+            elif field_type == "custom_slider":
+                from ui.widgets.labeled_slider import LabeledSlider
+                slider = LabeledSlider(
+                    title=title,
+                    min_val=field.get("min_val", 0),
+                    max_val=field.get("max_val", 100),
+                    default_val=current_val,
+                    step=field.get("step", 1),
+                    unit=field.get("unit", ""),
+                    decimals=field.get("decimals", 0),
+                    ticks=field.get("ticks")
+                )
+                slider.valueChanged.connect(cb)
+                self.add_custom_widget(slider)
+
+            elif field_type == "switch":
+                self.add_checkbox(title, bool(current_val), cb)
+
+            elif field_type == "combobox":
+                self.add_combobox(
+                    label_text=title,
+                    items=field.get("options", []),
+                    current_text=current_val,
+                    callback=cb,
+                    extra_widget=field.get("extra_widget")
+                )
+                
+            elif field_type == "lineedit":
+                self.add_lineedit(title, current_val, field.get("placeholder", ""), cb)

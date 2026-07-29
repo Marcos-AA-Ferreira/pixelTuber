@@ -91,3 +91,9 @@ class EventBus(QObject):
     bg_player_duration_updated = Signal(int)
     bg_player_metadata_updated = Signal(str)
     bg_player_state_changed = Signal(bool) # Avisa se está tocando ou pausado
+
+    # --- GERENCIAMENTO DE EFEITOS ---
+    request_save_effect = Signal(dict)
+    request_delete_effect = Signal(str)
+    effect_saved_successfully = Signal(str) # Retorna o "type" do efeito
+    effect_deleted_successfully = Signal()

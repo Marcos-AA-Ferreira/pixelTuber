@@ -1,6 +1,4 @@
-# ui/tabs/settings_tab.py
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, 
-                             QLabel, QFrame, QGroupBox, QScrollArea)
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFrame, QGroupBox, QScrollArea
 from core.event_bus import EventBus
 from ui.utils.form_builder import FormBuilder
 
@@ -10,23 +8,29 @@ class SettingsTab(QWidget):
         self.cfg = config_manager
         self.bus = EventBus.instance()
         
-        layout_principal = QVBoxLayout(self)
+        # Mapeamento do Chroma Key
+        self.chroma_map = {
+            "Transparente (Padrão)": "transparent",
+            "Verde Chroma (#00FF00)": "green",
+            "Magenta (#FF00FF)": "magenta"
+        }
         
+        self.init_ui()
+
+    def init_ui(self):
+        layout_principal = QVBoxLayout(self)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        
+
         container = QWidget()
         self.main_layout = QVBoxLayout(container)
         self.main_layout.setSpacing(15)
 
-        self._setup_system_section()
-        self._setup_hotkeys_section()
-        self._setup_render_section()
-        
+        self._setup_sections()
+
         self.main_layout.addStretch()
-        
-        # Botão Salvar Geral
+
         self.btn_save = QPushButton("💾 SALVAR TODAS AS CONFIGURAÇÕES")
         self.btn_save.clicked.connect(self.save_all)
         self.main_layout.addWidget(self.btn_save)
@@ -34,108 +38,80 @@ class SettingsTab(QWidget):
         scroll.setWidget(container)
         layout_principal.addWidget(scroll)
 
-    def _setup_system_section(self):
-        group = QGroupBox("⚙️ SISTEMA E DESEMPENHO")
-        layout = QVBoxLayout(group)
-        builder = FormBuilder(layout)
+    # =================================================================
+    # LÓGICA DE DADOS (GETTERS E SETTERS CENTRAIS)
+    # =================================================================
+
+    def _get_setting_value(self, key: str):
+        """Lê o valor atual do JSON usando notação de ponto (ex: system.fps_limit)"""
+        domain, subkey = key.split('.')
         
-        # 1. Otimização: Limite de FPS
-        current_fps = self.cfg.data.get("system", {}).get("fps_limit", "60 FPS")
-        self.fps_combo = builder.add_combobox(
-            label_text="Limite de FPS (Desempenho):",
-            items=["30 FPS", "60 FPS", "120 FPS"],
-            current_text=current_fps,
-            callback=self.update_fps
-        )
+        # Tradução reversa do Chroma Key ('transparent' -> 'Transparente (Padrão)')
+        if key == "render.chroma_key":
+            val = self.cfg.data.get(domain, {}).get(subkey, "transparent")
+            return next((k for k, v in self.chroma_map.items() if v == val), "Transparente (Padrão)")
         
-        # 2. Integração OBS: Chroma Key
-        # Usamos um dicionário para mapear os nomes amigáveis para os valores do JSON
-        self.chroma_map = {
-            "Transparente (Padrão)": "transparent",
-            "Verde Chroma (#00FF00)": "green",
-            "Magenta (#FF00FF)": "magenta"
-        }
-        current_chroma_val = self.cfg.data.get("render", {}).get("chroma_key", "transparent")
-        current_chroma_text = next((k for k, v in self.chroma_map.items() if v == current_chroma_val), "Transparente (Padrão)")
+        return self.cfg.data.get(domain, {}).get(subkey)
+
+    def _on_setting_changed(self, key: str, value):
+        """Roteador inteligente: recebe qualquer mudança da UI e aplica no lugar certo"""
+        domain, subkey = key.split('.')
         
-        self.chroma_combo = builder.add_combobox(
-            label_text="Fundo do Avatar (Chroma Key):",
-            items=list(self.chroma_map.keys()),
-            current_text=current_chroma_text,
-            callback=self.update_chroma
-        )
+        # 1. Tratamento específico para o Chroma Key
+        if key == "render.chroma_key":
+            value = self.chroma_map.get(value, "transparent")
+            self.cfg.data.setdefault(domain, {})[subkey] = value
+            self.bus.request_chroma_key_update.emit()
+            return
+
+        # 2. Tratamento específico para os atalhos de teclado
+        if domain == "hotkeys":
+            value = value.strip().lower()
+            self.cfg.data.setdefault(domain, {})[subkey] = value
+            self.bus.request_hotkeys_reload.emit()
+            return
+
+        # 3. Tratamento padrão (salva o dado diretamente)
+        self.cfg.data.setdefault(domain, {})[subkey] = value
         
-        # 3. Bandeja do Sistema (Tray)
-        current_tray = self.cfg.data.get("system", {}).get("minimize_to_tray", False)
-        self.tray_check = builder.add_checkbox(
-            label_text="Minimizar para a Bandeja (System Tray) ao invés de fechar",
-            is_checked=current_tray,
-            callback=self.update_tray
-        )
-        
-        self.main_layout.addWidget(group)
+        # Eventos paralelos
+        if key == "render.always_on_top":
+            self.bus.request_render_on_top_toggle.emit(value)
 
-    def _setup_hotkeys_section(self):
-        group = QGroupBox("⌨️ ATALHOS GLOBAIS")
-        layout = QVBoxLayout(group)
-        layout.addWidget(QLabel("<small>Estes atalhos funcionam mesmo com o app em segundo plano.</small>"))
-        builder = FormBuilder(layout)
+    # =================================================================
+    # DATA-DRIVEN UI (SEM REPETIÇÃO)
+    # =================================================================
 
-        hk_cfg = self.cfg.data.get("hotkeys", {})
-        
-        # 1. Travar Movimento
-        self.lock_hk = builder.add_lineedit(
-            label_text="Travar/Destravar Movimento:",
-            current_text=hk_cfg.get("toggle_lock", ""),
-            placeholder="ex: f10 ou shift+k",
-            callback=lambda val: self.update_hk_config("toggle_lock", val)
-        )
+    def _setup_sections(self):
+        # --- 1. SISTEMA E DESEMPENHO ---
+        sys_group = QGroupBox("⚙️ SISTEMA E DESEMPENHO")
+        sys_builder = FormBuilder(QVBoxLayout(sys_group))
+        sys_schema = [
+            {"type": "combobox", "key": "system.fps_limit", "title": "Limite de FPS (Desempenho):", "options": ["30 FPS", "60 FPS", "120 FPS"], "default": "60 FPS"},
+            {"type": "combobox", "key": "render.chroma_key", "title": "Fundo do Avatar (Chroma Key):", "options": list(self.chroma_map.keys()), "default": "Transparente (Padrão)"},
+            {"type": "switch", "key": "system.minimize_to_tray", "title": "Minimizar para a Bandeja (System Tray) ao invés de fechar", "default": False}
+        ]
+        sys_builder.build_from_schema(sys_schema, self._get_setting_value, self._on_setting_changed)
+        self.main_layout.addWidget(sys_group)
 
-        # 2. Próximo Set de Animação
-        self.next_hk = builder.add_lineedit(
-            label_text="Próximo Set de Animação:",
-            current_text=hk_cfg.get("next_set", ""),
-            placeholder="ex: f10 ou shift+k",
-            callback=lambda val: self.update_hk_config("next_set", val)
-        )
-        
-        self.main_layout.addWidget(group)
+        # --- 2. ATALHOS GLOBAIS ---
+        hk_group = QGroupBox("⌨️ ATALHOS GLOBAIS")
+        hk_lay = QVBoxLayout(hk_group)
+        hk_lay.addWidget(QLabel("<small>Estes atalhos funcionam mesmo com o app em segundo plano.</small>"))
+        hk_schema = [
+            {"type": "lineedit", "key": "hotkeys.toggle_lock", "title": "Travar/Destravar Movimento:", "placeholder": "ex: f10 ou shift+k"},
+            {"type": "lineedit", "key": "hotkeys.next_set", "title": "Próximo Set de Animação:", "placeholder": "ex: f10 ou shift+k"}
+        ]
+        FormBuilder(hk_lay).build_from_schema(hk_schema, self._get_setting_value, self._on_setting_changed)
+        self.main_layout.addWidget(hk_group)
 
-    def _setup_render_section(self):
-        group = QGroupBox("🖥️ COMPORTAMENTO DE JANELA")
-        layout = QVBoxLayout(group)
-        builder = FormBuilder(layout)
-
-        current_on_top = self.cfg.data.get("render", {}).get("always_on_top", True)
-        self.on_top = builder.add_checkbox(
-            label_text="Janela do Avatar sempre no topo (Overlay)",
-            is_checked=current_on_top,
-            callback=self.update_on_top
-        )
-
-        self.main_layout.addWidget(group)
-
-    # ==========================================
-    # LÓGICA E CALLBACKS
-    # ==========================================
-    def update_fps(self, val):
-        self.cfg.data.setdefault("system", {})["fps_limit"] = val
-
-    def update_chroma(self, text):
-        val = self.chroma_map.get(text, "transparent") # Pega o valor real baseado no texto
-        self.cfg.data.setdefault("render", {})["chroma_key"] = val
-        self.bus.request_chroma_key_update.emit() 
-
-    def update_tray(self, state):
-        self.cfg.data.setdefault("system", {})["minimize_to_tray"] = state
-
-    def update_hk_config(self, key, value):
-        self.cfg.data.setdefault("hotkeys", {})[key] = value.strip().lower()
-        self.bus.request_hotkeys_reload.emit() 
-
-    def update_on_top(self, state):
-        self.bus.request_render_on_top_toggle.emit(state)
-        self.cfg.data.setdefault("render", {})["always_on_top"] = state
+        # --- 3. COMPORTAMENTO DE JANELA ---
+        win_group = QGroupBox("🖥️ COMPORTAMENTO DE JANELA")
+        win_schema = [
+            {"type": "switch", "key": "render.always_on_top", "title": "Janela do Avatar sempre no topo (Overlay)", "default": True}
+        ]
+        FormBuilder(QVBoxLayout(win_group)).build_from_schema(win_schema, self._get_setting_value, self._on_setting_changed)
+        self.main_layout.addWidget(win_group)
 
     def save_all(self):
         try:
