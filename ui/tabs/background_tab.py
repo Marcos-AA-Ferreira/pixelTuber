@@ -6,10 +6,12 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from PySide6.QtCore import Qt, QTime
 from PySide6.QtGui import QPixmap
 
-from ui.tabs.background_tab_component.music_toast import MusicToast
-from ui.utils.form_builder import FormBuilder
 from core.utils import validate_path
 from core.event_bus import EventBus
+
+from ui.tabs.background_tab_component.music_toast import MusicToast
+from ui.utils.form_builder import FormBuilder
+from ui.schemas.background_schema import VISUAL_SCHEMA, AUDIO_TOP_SCHEMA, AUDIO_BOTTOM_SCHEMA, LAYER_OPTIONS
 
 class ClickableSlider(QSlider):
     """Barra de progresso clicável para avançar a música"""
@@ -31,8 +33,8 @@ class BackgroundTab(QWidget):
         self.cfg = config_manager
         self.toast = MusicToast(None)
         
-        # Mapeamento do Combobox de Camadas
-        self.layer_options = ["⬇️ Fundo (Atrás do Avatar)", "🟦 Normal", "⬆️ Sobrepor (Frente do Avatar)"]
+        # Mapeamento do Combobox de Camadas puxado do schema
+        self.layer_options = LAYER_OPTIONS
         
         self.init_ui()
         self.connect_events_and_signals()
@@ -88,12 +90,8 @@ class BackgroundTab(QWidget):
         render_frame.setObjectName("SeparatorFrame")
         builder_render = FormBuilder(QVBoxLayout(render_frame))
         
-        schema_visual = [
-            {"type": "combobox", "key": "bg_layer_level", "title": "Profundidade da Camada:", "options": self.layer_options, "default": self.layer_options[0]},
-            {"type": "custom_slider", "key": "bg_opacity", "title": "Nível de Opacidade:", "min_val": 0, "max_val": 100, "default": 100, "unit": "%"},
-            {"type": "custom_slider", "key": "bg_blur", "title": "Intensidade do Desfoque:", "min_val": 0, "max_val": 50, "default": 0, "unit": " px"}
-        ]
-        builder_render.build_from_schema(schema_visual, self._get_setting_value, self._on_setting_changed)
+        # O FormBuilder agora usa o VISUAL_SCHEMA isolado
+        builder_render.build_from_schema(VISUAL_SCHEMA, self._get_setting_value, self._on_setting_changed)
         
         bg_layout.addWidget(render_frame)
         self.layout.addWidget(bg_group)
@@ -104,10 +102,8 @@ class BackgroundTab(QWidget):
         builder_audio = FormBuilder(audio_layout)
         
         # --- UI Data-Driven (Posição do Toast) ---
-        schema_top = [
-            {"type": "combobox", "key": "system.toast_position", "title": "Posição da Notificação (Toast):", "options": ["Canto Inferior Direito", "Canto Superior Direito", "Canto Inferior Esquerdo", "Canto Superior Esquerdo"], "default": "Canto Inferior Direito"}
-        ]
-        builder_audio.build_from_schema(schema_top, self._get_setting_value, self._on_setting_changed)
+        # Usa o AUDIO_TOP_SCHEMA
+        builder_audio.build_from_schema(AUDIO_TOP_SCHEMA, self._get_setting_value, self._on_setting_changed)
 
         # --- UI Customizada (Player de Música) ---
         self.lbl_music_info = QLabel("Nenhuma trilha")
@@ -140,12 +136,8 @@ class BackgroundTab(QWidget):
         audio_layout.addLayout(music_nav_row)
 
         # --- UI Data-Driven (Volume e Loop) ---
-        schema_bottom = [
-            {"type": "switch", "key": "bg_music_loop", "title": "🔂 Loop Automático", "default": True},
-            {"type": "custom_slider", "key": "bg_music_vol", "title": "Volume Principal:", "min_val": 0, "max_val": 100, "default": 50, "unit": "%"},
-            {"type": "switch", "key": "bg_music_muted", "title": "🔇 Mudo", "default": False}
-        ]
-        builder_audio.build_from_schema(schema_bottom, self._get_setting_value, self._on_setting_changed)
+        # Usa o AUDIO_BOTTOM_SCHEMA
+        builder_audio.build_from_schema(AUDIO_BOTTOM_SCHEMA, self._get_setting_value, self._on_setting_changed)
         
         self.layout.addWidget(audio_group)
 

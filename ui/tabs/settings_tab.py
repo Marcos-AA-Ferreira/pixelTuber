@@ -1,6 +1,9 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFrame, QGroupBox, QScrollArea
+
 from core.event_bus import EventBus
+
 from ui.utils.form_builder import FormBuilder
+from ui.schemas.settings_schema import SYSTEM_SCHEMA, HOTKEYS_SCHEMA, WINDOW_SCHEMA
 
 class SettingsTab(QWidget):
     def __init__(self, config_manager):
@@ -86,31 +89,19 @@ class SettingsTab(QWidget):
         # --- 1. SISTEMA E DESEMPENHO ---
         sys_group = QGroupBox("⚙️ SISTEMA E DESEMPENHO")
         sys_builder = FormBuilder(QVBoxLayout(sys_group))
-        sys_schema = [
-            {"type": "combobox", "key": "system.fps_limit", "title": "Limite de FPS (Desempenho):", "options": ["30 FPS", "60 FPS", "120 FPS"], "default": "60 FPS"},
-            {"type": "combobox", "key": "render.chroma_key", "title": "Fundo do Avatar (Chroma Key):", "options": list(self.chroma_map.keys()), "default": "Transparente (Padrão)"},
-            {"type": "switch", "key": "system.minimize_to_tray", "title": "Minimizar para a Bandeja (System Tray) ao invés de fechar", "default": False}
-        ]
-        sys_builder.build_from_schema(sys_schema, self._get_setting_value, self._on_setting_changed)
+        sys_builder.build_from_schema(SYSTEM_SCHEMA, self._get_setting_value, self._on_setting_changed)
         self.main_layout.addWidget(sys_group)
 
         # --- 2. ATALHOS GLOBAIS ---
         hk_group = QGroupBox("⌨️ ATALHOS GLOBAIS")
         hk_lay = QVBoxLayout(hk_group)
         hk_lay.addWidget(QLabel("<small>Estes atalhos funcionam mesmo com o app em segundo plano.</small>"))
-        hk_schema = [
-            {"type": "lineedit", "key": "hotkeys.toggle_lock", "title": "Travar/Destravar Movimento:", "placeholder": "ex: f10 ou shift+k"},
-            {"type": "lineedit", "key": "hotkeys.next_set", "title": "Próximo Set de Animação:", "placeholder": "ex: f10 ou shift+k"}
-        ]
-        FormBuilder(hk_lay).build_from_schema(hk_schema, self._get_setting_value, self._on_setting_changed)
+        FormBuilder(hk_lay).build_from_schema(HOTKEYS_SCHEMA, self._get_setting_value, self._on_setting_changed)
         self.main_layout.addWidget(hk_group)
 
         # --- 3. COMPORTAMENTO DE JANELA ---
         win_group = QGroupBox("🖥️ COMPORTAMENTO DE JANELA")
-        win_schema = [
-            {"type": "switch", "key": "render.always_on_top", "title": "Janela do Avatar sempre no topo (Overlay)", "default": True}
-        ]
-        FormBuilder(QVBoxLayout(win_group)).build_from_schema(win_schema, self._get_setting_value, self._on_setting_changed)
+        FormBuilder(QVBoxLayout(win_group)).build_from_schema(WINDOW_SCHEMA, self._get_setting_value, self._on_setting_changed)
         self.main_layout.addWidget(win_group)
 
     def save_all(self):

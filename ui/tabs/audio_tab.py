@@ -1,9 +1,12 @@
 # ui/tabs/audio_tab.py
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QProgressBar, QGroupBox, QScrollArea, QFrame
+
+from core.event_bus import EventBus
+
 from ui.widgets.labeled_slider import LabeledSlider
 from ui.tabs.audio_tab_component.audio_visualizer import AudioVisualizerWidget
-from core.event_bus import EventBus
 from ui.utils.form_builder import FormBuilder
+from ui.schemas.audio_schema import VISUALIZER_SCHEMA, PROCESSING_SCHEMA
 
 class AudioTab(QWidget):
     def __init__(self, config_manager):
@@ -22,16 +25,15 @@ class AudioTab(QWidget):
         
         scroll_content = QWidget()
         self.layout = QVBoxLayout(scroll_content)
-
-        # Configuração Guiada por Dados!
+        
+        # Configuração Guiada por Dados
         self._setup_device_section()
         self._setup_visualizer_section()
         self._setup_processing_section()
-        self._setup_thresholds_section()
-
+        
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
-
+        
         # Pede ao EventBus a lista inicial de microfones
         self.bus.request_refresh_devices.emit()
 
@@ -78,21 +80,15 @@ class AudioTab(QWidget):
         group = QGroupBox("Visualização de Frequência")
         layout = QVBoxLayout(group)
         builder = FormBuilder(layout)
-
+        
         self.visualizer = AudioVisualizerWidget()
         builder.add_custom_widget(self.visualizer)
-
-        schema = [{
-            "type": "combobox",
-            "key": "style", # Chave no JSON
-            "title": "Estilo do Gráfico:",
-            "options": ["Clássico", "Onda Contínua", "Barras Digitais", "Neon Simétrico", "Pontos de Energia"],
-            "default": "Clássico"
-        }]
         
         vis_config = self.cfg.data.get("visualizer", {})
-        builder.build_from_schema(schema, vis_config, self._on_visualizer_field_changed)
-
+        
+        # O FormBuilder agora consome o schema importado
+        builder.build_from_schema(VISUALIZER_SCHEMA, vis_config, self._on_visualizer_field_changed)
+        
         # Configura o estilo inicial
         self.visualizer.set_visualizer_style(vis_config.get("style", "Clássico"))
         
@@ -102,36 +98,11 @@ class AudioTab(QWidget):
         group = QGroupBox("Filtros e Processamento de Voz")
         layout = QVBoxLayout(group)
         builder = FormBuilder(layout)
-
-        # O Schema define a estrutura de dados, o builder desenha!
-        schema = [
-            {
-                "type": "custom_slider", "key": "gain",
-                "title": "Ganho do Microfone (Volume de Entrada):",
-                "min_val": 0, "max_val": 5, "default": 1.0, "step": 0.1, "unit": "x",
-                "ticks": [("0x", 0), ("1x", 1), ("5x", 5)], "decimals": 1
-            },
-            {
-                "type": "custom_slider", "key": "noise_gate",
-                "title": "Noise Gate (Corte de Ruído):",
-                "min_val": 0, "max_val": 1, "default": 0.02, "step": 0.01, "unit": "",
-                "ticks": [("0", 0), ("0.5", 0.5), ("1", 1)], "decimals": 2
-            },
-            {
-                "type": "custom_slider", "key": "hold_time",
-                "title": "Tempo de Retenção (Hold Time):",
-                "min_val": 0, "max_val": 1000, "default": 200, "step": 10, "unit": " ms",
-                "decimals": 0
-            },
-            {
-                "type": "switch", "key": "auto_ducking",
-                "title": "Auto-Ducking (Abaixar música de fundo ao falar)",
-                "default": False
-            }
-        ]
-
+        
         audio_config = self.cfg.data.get("audio", {})
-        builder.build_from_schema(schema, audio_config, self._on_audio_field_changed)
+        
+        # O FormBuilder agora consome o schema importado
+        builder.build_from_schema(PROCESSING_SCHEMA, audio_config, self._on_audio_field_changed)
         
         self.layout.addWidget(group)
 
