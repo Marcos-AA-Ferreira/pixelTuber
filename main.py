@@ -15,6 +15,7 @@ from core.hotkey_manager import HotkeyManager
 from core.effect_manager import EffectManager
 from core.utils import validate_path
 from core.event_bus import EventBus
+from core.media_service import MediaService
 
 # --- Importação das Interfaces (UI) ---
 from ui.window.render_window import RenderWindow
@@ -34,7 +35,10 @@ class PixelTuberApp:
         # 1. Carregar Configurações
         self.config = ConfigManager()
         
-        # 2. Inicializar Motores de Áudio e Animação
+        # 2. Inicializar Serviço de Mídia Centralizado
+        self.media_service = MediaService(pool_size=10)
+
+        # Inicializar Motor de Áudio (Escutar Microfone / Lip-sync)
         self.audio = AudioManager(self.config)
         
         # Conecta o evento do áudio diretamente ao atualizador da interface! 🚀
@@ -49,9 +53,10 @@ class PixelTuberApp:
 
 
         self.anim_logic = AnimationManager(self.config, self.render)
-        
+
         # 4. Inicializar Gerenciadores de Lógica
-        self.effects = EffectManager(self.overlay)
+        self.effects = EffectManager(self.overlay, self.media_service)
+        
         self.hotkeys = HotkeyManager(self.config, self.render, self.overlay)
         self.hotkeys.setup_defaults()
 

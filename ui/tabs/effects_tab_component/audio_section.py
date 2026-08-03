@@ -2,6 +2,9 @@ import os
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFileDialog
 from PySide6.QtCore import Qt, QUrl, QTimer, Signal
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+
+from core.event_bus import EventBus
+
 from ui.widgets.file_picker import FilePickerWidget
 
 # Tenta importar o novo trimmer minimalista
@@ -19,14 +22,6 @@ class AudioSection(QFrame):
         self.val_start = 0.0
         self.val_end = 0.0
         self.pending_load = None # Armazena tempos de corte enquanto o arquivo carrega
-        
-        # --- CONFIGURAÇÃO DO PLAYER (PYSIDE6) ---
-        self.audio_output = QAudioOutput()
-        self.audio_output.setVolume(1.0) 
-        
-        self.meta_player = QMediaPlayer()
-        self.meta_player.setAudioOutput(self.audio_output)
-        self.meta_player.durationChanged.connect(self.on_meta_loaded)
         
         self.init_ui()
 
@@ -110,15 +105,16 @@ class AudioSection(QFrame):
 
     def preview_cut(self):
         if not self.path_a: return
-        if self.meta_player.playbackState() == QMediaPlayer.PlayingState:
-            self.meta_player.stop()
         
-        start_ms = int(self.val_start * 1000)
-        self.meta_player.setPosition(start_ms)
-        self.meta_player.play()
-        
-        duration_to_play_ms = int((self.val_end - self.val_start) * 1000)
-        QTimer.singleShot(max(100, duration_to_play_ms), self.meta_player.stop)
+        # ✅ Emite uma intenção de áudio genérica (Crie esse sinal no event_bus.py se não existir)
+        # Ou reaproveite request_play_effect passando um dicionário só com áudio
+        payload = {
+            "effect_id": "preview_audio_temp",
+            "audio_path": self.path_a,
+            "audio_start": self.val_start,
+            "audio_end": self.val_end
+        }
+        EventBus.instance().request_play_effect.emit(payload)
 
     def get_data(self):
         return {

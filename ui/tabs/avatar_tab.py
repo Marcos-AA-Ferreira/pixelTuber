@@ -8,7 +8,10 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlide
 from PySide6.QtCore import Qt
 
 from core.event_bus import EventBus
+
 from ui.widgets.labeled_slider import LabeledSlider
+from ui.utils.form_builder import FormBuilder
+from ui.schemas.avatar_schema import ( AVATAR_GENERAL_SCHEMA, AVATAR_TRANSFORM_SCHEMA, AVATAR_ANIMATION_SCHEMA )
 
 class AvatarTab(QWidget):
     def __init__(self, config_manager):
@@ -18,7 +21,6 @@ class AvatarTab(QWidget):
         self.profile = config_manager.data
         self.path_labels = {}
 
-        # Garante a estrutura básica de animações no JSON
         if "animations" not in self.profile:
             self.profile["animations"] = {"main_set": "default", "sets": {"default": {}}}
 
@@ -27,40 +29,74 @@ class AvatarTab(QWidget):
         self.refresh_extras_ui()
         self.connect_bus_signals()
 
+    # =================================================================
+    # 1. DATA-DRIVEN UI HELPER METHODS
+    # =================================================================
+    def _get_setting_value(self, key: str):
+        """Lê o valor da chave no ConfigManager interpretando o ponto (ex: render.scale)."""
+        if "." in key:
+            domain, subkey = key.split(".", 1)
+            # O slider precisa de valores entre 0 e 100 (int), mas o JSON salva entre 0.0 e 1.0 (float)
+            val = self.cfg.data.get(domain, {}).get(subkey)
+            if key == "render.scale" and val is not None:
+                return int(val * 100)
+            return val
+            
+        return self.cfg.data.get(key)
+
+    def _on_setting_changed(self, key: str, value):
+        """Atualiza a chave no ConfigManager, salva e notifica o sistema."""
+        # Se for o slider de escala, converte de volta de 100 para 1.0
+        if key == "render.scale":
+            value = value / 100.0
+
+        if "." in key:
+            domain, subkey = key.split(".", 1)
+            self.cfg.data.setdefault(domain, {})[subkey] = value
+        else:
+            self.cfg.data[key] = value
+
+        self.cfg.save()
+
+        # Se a alteração for de escala ou visual, notifica a janela de renderização
+        if "scale" in key or "flip_h" in key:
+            self.bus.request_geometry_update.emit()
+
+    # =================================================================
+    # 2. ESTRUTURA DE LAYOUT PRINCIPAL
+    # =================================================================
     def _init_ui(self):
         """Estrutura base da janela de scroll."""
         layout_principal = QVBoxLayout(self)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        
+
         container = QWidget()
         self.main_layout = QVBoxLayout(container)
         self.main_layout.setSpacing(15)
-        
-        # Construtores de cada bloco visual
-        self._setup_window_controls()
+
+        # 1. Botões de ação da janela (Mantidos via método limpo)
+        self._setup_window_actions()
+
+        # 2. Constrói as seções declarativas (Data-Driven via FormBuilder)
+        self._setup_sections(self.main_layout)
+
+        # 3. Chama os métodos originais que já anexam os grupos ao layout internamente
         self._setup_wardrobe_section()
         self._setup_sprites_section()
         self._setup_extras_section()
-        
+
+        self.main_layout.addStretch()
+
         scroll.setWidget(container)
         layout_principal.addWidget(scroll)
 
-    def connect_bus_signals(self):
-        """Escuta retornos de outros módulos via EventBus."""
-        self.bus.audio_mute_updated.connect(self._sync_mute_button)
-
-
-    # ================================================================
-    # 1. SETUP DA INTERFACE (CONSTRUÇÃO VISUAL)
-    # ================================================================
-
-    def _setup_window_controls(self):
+    def _setup_window_actions(self):
+        """Monta APENAS os botões de controle, sem os sliders antigos."""
         win_group = QGroupBox("🎮 CONTROLE DO AVATAR")
         layout = QVBoxLayout(win_group)
         
-        # Botões Rápidos
         btns = QHBoxLayout()
         self.btn_visibility = QPushButton("👁️ VISÍVEL")
         self.btn_visibility.setCheckable(True)
@@ -78,26 +114,46 @@ class AvatarTab(QWidget):
         btns.addWidget(self.btn_minimize)
         btns.addWidget(self.btn_mute)
         layout.addLayout(btns)
-
-        # Escala (Zoom)
-        current_scale = self.profile.get("render", {}).get("scale", 1.0)
-        self.scale_sld = LabeledSlider(
-            title="Escala Geral (Zoom):",
-            min_val=10, max_val=400,
-            default_val=int(current_scale * 100),
-            step=1, unit="%",
-            ticks=[("10%", 10), ("100%", 100), ("400%", 400)]
-        )
-        self.scale_sld.valueChanged.connect(self.update_scale)
-        layout.addWidget(self.scale_sld)
-
-        # Trava de Movimento
-        self.lock_check = QCheckBox("🔒 Travar Posição na Tela")
-        self.lock_check.setChecked(self.profile.get("render", {}).get("locked", False))
-        self.lock_check.toggled.connect(self.toggle_lock)
-        layout.addWidget(self.lock_check)
-
+        
         self.main_layout.addWidget(win_group)
+
+    def connect_bus_signals(self):
+        """Escuta retornos de outros módulos via EventBus."""
+        if hasattr(self.bus, 'audio_mute_updated'):
+            self.bus.audio_mute_updated.connect(self._sync_mute_button)
+
+    # =================================================================
+    # 3. CONSTRUTOR DE SEÇÕES DECLARATIVO (ADICIONAR)
+    # =================================================================
+    def _setup_sections(self, target_layout):
+        """Cria as caixas de formulário a partir dos schemas importados."""
+        
+        # --- Grupo 1: Informações Gerais ---
+        gen_group = QGroupBox("👤 INFORMAÇÕES DO AVATAR")
+        FormBuilder(QVBoxLayout(gen_group)).build_from_schema(
+            AVATAR_GENERAL_SCHEMA, 
+            self._get_setting_value, 
+            self._on_setting_changed
+        )
+        target_layout.addWidget(gen_group)
+
+        # --- Grupo 2: Transformação e Posicionamento ---
+        trans_group = QGroupBox("📐 TRANSFORMAÇÃO E POSICIONAMENTO")
+        FormBuilder(QVBoxLayout(trans_group)).build_from_schema(
+            AVATAR_TRANSFORM_SCHEMA, 
+            self._get_setting_value, 
+            self._on_setting_changed
+        )
+        target_layout.addWidget(trans_group)
+
+        # --- Grupo 3: Reprodução e FPS ---
+        anim_group = QGroupBox("🎬 REPRODUÇÃO E FPS")
+        FormBuilder(QVBoxLayout(anim_group)).build_from_schema(
+            AVATAR_ANIMATION_SCHEMA, 
+            self._get_setting_value, 
+            self._on_setting_changed
+        )
+        target_layout.addWidget(anim_group)
 
     def _setup_wardrobe_section(self):
         wardrobe_group = QGroupBox("👕 GUARDA-ROUPA (SKINS)")
@@ -501,11 +557,6 @@ class AvatarTab(QWidget):
     # ================================================================
     # 6. COMANDOS DIRETOS (CONTROLES DE JANELA)
     # ================================================================
-
-    def update_scale(self, v):
-        self.profile.setdefault("render", {})["scale"] = v / 100.0
-        self.bus.request_geometry_update.emit()
-        self.cfg.save()
 
     def toggle_lock(self, checked):
         self.profile.setdefault("render", {})["locked"] = checked

@@ -4,27 +4,14 @@ from PySide6.QtCore import QUrl, QTimer, QObject, Signal
 from core.utils import validate_path
 
 class EffectManager(QObject):
-    """
-    Controlador de alto nível para disparar efeitos visuais e sonoros.
-    Faz a ponte entre a lógica de negócio e a FullScreenOverlay.
-    """
-    # Avisa quando um efeito Draggable foi movido para podermos salvar X e Y
-    # Agora inclui o effect_id para sabermos qual entrada no JSON atualizar
-    positionUpdated = Signal(str, int, int) # effect_id, x, y
+    positionUpdated = Signal(str, int, int)
 
-    def __init__(self, overlay_window):
+    def __init__(self, overlay_window, media_service):
         super().__init__()
         self.overlay = overlay_window
+        self.media_service = media_service
         
-        # Conecta o sinal de movimento que vem da Overlay (UI) para este Manager
-        # A Overlay agora passará (str, int, int) -> id, x, y
         self.overlay.effectPositionChanged.connect(self._handle_position_change)
-        
-        # Player dedicado para sons sem imagem
-        self.audio_player = QMediaPlayer()
-        self.audio_output = QAudioOutput()
-        self.audio_player.setAudioOutput(self.audio_output)
-        self.audio_output.setVolume(1.0)
 
     def play_effect(self, config):
         """Recebe o dicionário via EventBus e processa o disparo."""
@@ -45,24 +32,12 @@ class EffectManager(QObject):
             
         # Se for apenas áudio
         elif validate_path(audio):
-            self._play_standalone_audio(
-                audio,
-                config.get("audio_start", 0.0),
-                config.get("audio_end", 0.0)
+            # ✅ DELEGUE AO SERVIÇO:
+            self.media_service.play(
+                path=audio,
+                start_sec=config.get("audio_start", 0.0),
+                end_sec=config.get("audio_end", 0.0)
             )
-
-    def _play_standalone_audio(self, path, start, end):
-        """Executa áudio sem componente visual."""
-        self.audio_player.stop()
-        self.audio_player.setSource(QUrl.fromLocalFile(os.path.abspath(path)))
-        
-        # Pequena pausa para garantir que o arquivo foi indexado
-        QTimer.singleShot(20, lambda: self.audio_player.setPosition(int(start * 1000)))
-        self.audio_player.play()
-        
-        if end > start:
-            duration_ms = int((end - start) * 1000)
-            QTimer.singleShot(duration_ms, self.audio_player.stop)
 
     def _handle_position_change(self, eid, x, y):
         """
